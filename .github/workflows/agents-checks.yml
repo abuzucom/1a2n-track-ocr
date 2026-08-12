@@ -1,0 +1,51 @@
+name: agents-checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  policy-checks:
+    name: AGENTS.md policy checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Branch name
+        if: github.event_name == 'pull_request'
+        run: python scripts/check_branch_name.py "${{ github.head_ref }}"
+
+      - name: Banned agents
+        run: python scripts/check_banned_agents.py --base "origin/${{ github.event.pull_request.base.ref || 'main' }}" --head HEAD
+
+      - name: ASCII only
+        run: python scripts/check_ascii.py
+
+      - name: No em/en dashes
+        run: python scripts/lint_style.py
+
+      - name: Weak hashing
+        run: python scripts/check_weak_hashing.py
+
+      - name: Secrets heuristic
+        run: python scripts/check_secrets_heuristic.py
+
+      - name: persist-credentials on checkout steps
+        run: python scripts/check_persist_credentials.py
+
+      - name: Non-root containers
+        run: python scripts/check_dockerfile_root.py
+
+      - name: US spelling (warning only)
+        run: python scripts/check_us_spelling.py
+
+      - name: English only (warning only)
+        run: python scripts/check_english_only.py
