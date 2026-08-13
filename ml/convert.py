@@ -105,6 +105,7 @@ def run() -> None:
 
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    # Wrap the generator in a no-arg callable as expected by TFLiteConverter
     converter.representative_dataset = lambda: representative_dataset_gen(dataset)
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
     converter.inference_input_type = tf.int8

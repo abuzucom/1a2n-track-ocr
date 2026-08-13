@@ -27,6 +27,7 @@ def files_match(source: Path, target: Path) -> bool:
             == target.read_text(encoding="utf-8").replace("\r\n", "\n")
         )
     except (OSError, UnicodeDecodeError):
+        # Treat read errors (e.g. missing file) as a mismatch.
         return False
 
 

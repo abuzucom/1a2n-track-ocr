@@ -15,14 +15,13 @@ def reset_arbiter_state(monkeypatch):
     arbiter._agreement_history.clear()
 
     sink_calls = []
-    monkeypatch.setattr(
-        arbiter.sinks,
-        "update",
-        lambda player_id, track, source, confidence=None: sink_calls.append(
-            (player_id, track, source, confidence)
-        )
-        or True,
-    )
+
+    def mock_sink_update(player_id, track, source, confidence=None):
+        """Record the arguments passed to sinks.update and simulate success."""
+        sink_calls.append((player_id, track, source, confidence))
+        return True
+
+    monkeypatch.setattr(arbiter.sinks, "update", mock_sink_update)
     return sink_calls
 
 
