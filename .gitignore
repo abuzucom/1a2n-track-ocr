@@ -67,3 +67,9 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# PlatformIO
+firmware/.pio/
+
+# firmware secrets, never commit real WiFi credentials or backend URLs
+firmware/src/config.h
