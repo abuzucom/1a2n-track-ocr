@@ -98,11 +98,19 @@ def _record_agreement(player_id: str, agree: bool) -> None:
 
 def is_trusted(player_id: str) -> bool:
     """True once the on-device model's recent agreement rate for
-    player_id has a full window and clears TRUST_THRESHOLD."""
-    history = _agreement_history.get(player_id)
-    if history is None or len(history) < AGREEMENT_WINDOW_SIZE:
-        return False
-    return sum(history) / len(history) >= TRUST_THRESHOLD
+    player_id has a full window and clears TRUST_THRESHOLD.
+
+    Reads under the lock. _record_agreement appends to these deques from
+    other request threads, and summing one while it is being appended to
+    can raise, or can average over a window that changed underneath the
+    read. Callers must not already hold the lock; the only caller,
+    record_ondevice, releases it before calling.
+    """
+    with _lock:
+        history = _agreement_history.get(player_id)
+        if history is None or len(history) < AGREEMENT_WINDOW_SIZE:
+            return False
+        return sum(history) / len(history) >= TRUST_THRESHOLD
 
 
 def record_ondevice(
