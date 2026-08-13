@@ -1,0 +1,18 @@
+// Copy this file to config.h and fill in real values. config.h is
+// gitignored; never commit it.
+
+#pragma once
+
+// How often to sample the screen, in milliseconds. Track changes happen
+// on the order of minutes; this does not need to be fast.
+#define CAPTURE_INTERVAL_MS 20000
+
+// Region of interest, in pixels, within the captured frame
+// (FRAME_WIDTH x FRAME_HEIGHT, see main.cpp). Crops to the track-name
+// field on the XDJ unit's Normal playback screen; see
+// docs/xdj_screen_reference.md. Calibrate against the physical camera
+// mount; these are placeholder values.
+#define ROI_X 80
+#define ROI_Y 40
+#define ROI_WIDTH 480
+#define ROI_HEIGHT 40
