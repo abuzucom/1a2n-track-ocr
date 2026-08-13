@@ -9,6 +9,31 @@ until 1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Output is published while the state lock is held, instead of
+  snapshotting under the lock and writing after releasing it. Two
+  concurrent updates could publish out of order, so an older snapshot
+  could land last and leave stale output until the next track change.
+- `now_playing` files are replaced atomically via a temp file and
+  rename. Writing in place truncates first, so an overlay polling
+  mid-write could read an empty or partial document.
+- `arbiter.is_trusted` reads agreement history under the lock.
+  `_record_agreement` appends to those deques from other request
+  threads, and summing one mid-append can raise or average over a
+  window that changed underneath the read.
+- Dataset storage is bounded by bytes and free disk space, not just a
+  sample count. The count-only quota permitted roughly 78 GiB. Quota is
+  now reserved atomically before writing, so concurrent callers cannot
+  each see spare capacity and collectively exceed it.
+- Dataset filenames carry a random suffix. Keying on `player_id` plus
+  epoch milliseconds meant two frames for one rig in the same
+  millisecond collided, silently replacing one image while both wrote
+  label rows, leaving a label describing an image that no longer
+  existed.
+- Label appends are serialized, since concurrent appends can interleave
+  within a line and corrupt the JSONL index.
+
 ### Security
 
 - Caddy now caps request bodies at 4MB and sets read, write, and idle

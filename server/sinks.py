@@ -34,6 +34,20 @@ def split_artist(track: str) -> Optional[str]:
     return None
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Replace path's contents in one step.
+
+    Writing in place truncates first, so an OBS overlay polling
+    mid-write reads an empty or partial file. Writing a sibling temp
+    file and renaming makes the swap atomic: os.replace is atomic on
+    both POSIX and Windows when source and destination share a
+    filesystem, which a sibling always does.
+    """
+    temp = path.with_name(f".{path.name}.tmp")
+    temp.write_text(text, encoding="utf-8")
+    os.replace(temp, path)
+
+
 def _write_text(player_id: str, track: str, state_length: int) -> None:
     # track is the verbatim screen text; when split_artist matched, track
     # already reads "Artist - Title", so no artist prefix needs adding.
@@ -42,15 +56,15 @@ def _write_text(player_id: str, track: str, state_length: int) -> None:
     # filename here, so the resolved path is checked against OUTPUT_DIR
     # as well. See validation.resolve_within for why both exist.
     target = validation.resolve_within(OUTPUT_DIR, OUTPUT_DIR / f"now_playing_{player_id}.txt")
-    target.write_text(track, encoding="utf-8")
+    _atomic_write_text(target, track)
     if state_length == 1:
-        (OUTPUT_DIR / "now_playing.txt").write_text(track, encoding="utf-8")
+        _atomic_write_text(OUTPUT_DIR / "now_playing.txt", track)
 
 
 def _write_json(state_snapshot: dict) -> None:
     payload = {"players": state_snapshot}
-    (OUTPUT_DIR / "now_playing.json").write_text(
-        json.dumps(payload, indent=2), encoding="utf-8"
+    _atomic_write_text(
+        OUTPUT_DIR / "now_playing.json", json.dumps(payload, indent=2)
     )
 
 
@@ -81,9 +95,15 @@ def update(player_id: str, track: str, source: str, confidence: Optional[float] 
             "source": source,
             "confidence": confidence,
         }
-        state_snapshot = dict(_state)
-        state_length = len(_state)
 
-    _write_text(player_id, track, state_length)
-    _write_json(state_snapshot)
-    return True
+        # Publish while still holding the lock. Snapshotting here and
+        # writing after releasing let two updates race: both captured a
+        # snapshot, then whichever reached the disk last won, so an
+        # older snapshot could overwrite a newer one and leave stale
+        # output published until the next change.
+        #
+        # The files are small and the writes are a rename, so the extra
+        # time under the lock is not worth trading correctness for.
+        _write_text(player_id, track, len(_state))
+        _write_json(dict(_state))
+        return True
