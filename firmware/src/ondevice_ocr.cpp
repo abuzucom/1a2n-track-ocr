@@ -81,9 +81,9 @@ bool ondeviceOcrReady() {
 static void classifyPatch(const uint8_t *patch, char *classified, float *confidence) {
     float scale = inputTensor->params.scale;
     int zeroPoint = inputTensor->params.zero_point;
+    float invScale = 1.0f / (255.0f * scale);
     for (int i = 0; i < PATCH_SIZE * PATCH_SIZE; i++) {
-        float normalized = patch[i] / 255.0f;
-        inputTensor->data.int8[i] = (int8_t)(normalized / scale + zeroPoint);
+        inputTensor->data.int8[i] = (int8_t)(patch[i] * invScale + zeroPoint);
     }
 
     if (interpreter->Invoke() != kTfLiteOk) {
@@ -113,6 +113,7 @@ OndeviceResult runOndeviceOcr(const uint8_t *roiRgb565, int width, int height) {
     }
 
     std::vector<SegmentedChar> chars = segmentAndExtract(roiRgb565, width, height, PATCH_SIZE);
+    result.track.reserve(chars.size());
     float minConfidence = 1.0f;
     for (const auto &segmented : chars) {
         char classified;

@@ -44,11 +44,12 @@ def resolve_within(base: Path, candidate: Path) -> Path:
     than HTTPException because this runs below the HTTP layer, and a hit
     here means the boundary check was bypassed, which is a bug rather
     than a client error.
+
+    Note: `base` must be pre-resolved to an absolute path by the caller.
     """
-    base_resolved = base.resolve()
     candidate_resolved = candidate.resolve()
-    if not candidate_resolved.is_relative_to(base_resolved):
+    if not candidate_resolved.is_relative_to(base):
         raise ValueError(
-            f"refusing to write outside {base_resolved}: {candidate_resolved}"
+            f"refusing to write outside {base}: {candidate_resolved}"
         )
     return candidate_resolved

@@ -1,5 +1,6 @@
 #include "char_segment.h"
 
+#include <Arduino.h>
 #include <algorithm>
 
 static const int MAX_CHARS = 48;
@@ -24,7 +25,7 @@ static void buildLuminance(const uint8_t *roiRgb565, int width, int height, uint
     }
 }
 
-static int otsuThreshold(const uint8_t *luminance, int count) {
+static int otsuThreshold(const uint8_t *luminance, int count, long *outAboveCount = nullptr) {
     int histogram[256] = {0};
     for (int i = 0; i < count; i++) {
         histogram[luminance[i]]++;
@@ -59,6 +60,15 @@ static int otsuThreshold(const uint8_t *luminance, int count) {
             bestThreshold = level;
         }
     }
+    
+    if (outAboveCount) {
+        long above = 0;
+        for (int level = bestThreshold + 1; level < 256; level++) {
+            above += histogram[level];
+        }
+        *outAboveCount = above;
+    }
+    
     return bestThreshold;
 }
 
@@ -70,14 +80,23 @@ static std::vector<CharBox> findBoxes(const uint8_t *luminance, int width, int h
     };
 
     std::vector<int> columnInk(width, 0);
+    std::vector<int> colMinY(width, height);
+    std::vector<int> colMaxY(width, 0);
+
     for (int x = 0; x < width; x++) {
         int count = 0;
+        int minY = height;
+        int maxY = 0;
         for (int y = 0; y < height; y++) {
             if (isInk(x, y)) {
                 count++;
+                minY = std::min(minY, y);
+                maxY = std::max(maxY, y + 1);
             }
         }
         columnInk[x] = count;
+        colMinY[x] = minY;
+        colMaxY[x] = maxY;
     }
 
     std::vector<CharBox> boxes;
@@ -107,11 +126,9 @@ static std::vector<CharBox> findBoxes(const uint8_t *luminance, int width, int h
         int top = height;
         int bottom = 0;
         for (int x = box.left; x < box.right; x++) {
-            for (int y = 0; y < height; y++) {
-                if (isInk(x, y)) {
-                    top = std::min(top, y);
-                    bottom = std::max(bottom, y + 1);
-                }
+            if (columnInk[x] > 0) {
+                top = std::min(top, colMinY[x]);
+                bottom = std::max(bottom, colMaxY[x]);
             }
         }
         // Every box spans columns with ink, so at least one pixel
@@ -148,26 +165,36 @@ std::vector<SegmentedChar> segmentAndExtract(const uint8_t *roiRgb565, int width
         return result;
     }
 
-    std::vector<uint8_t> luminance(width * height);
-    buildLuminance(roiRgb565, width, height, luminance.data());
-
-    int threshold = otsuThreshold(luminance.data(), width * height);
-    long aboveCount = 0;
-    for (int i = 0; i < width * height; i++) {
-        if (luminance[i] > threshold) {
-            aboveCount++;
+    static uint8_t *luminanceBuffer = nullptr;
+    static size_t luminanceCapacity = 0;
+    
+    size_t requiredCapacity = (size_t)width * height;
+    if (requiredCapacity > luminanceCapacity) {
+        if (luminanceBuffer) {
+            free(luminanceBuffer);
         }
+        luminanceBuffer = (uint8_t *)ps_malloc(requiredCapacity);
+        if (!luminanceBuffer) {
+            luminanceCapacity = 0;
+            return result;
+        }
+        luminanceCapacity = requiredCapacity;
     }
+
+    buildLuminance(roiRgb565, width, height, luminanceBuffer);
+
+    long aboveCount = 0;
+    int threshold = otsuThreshold(luminanceBuffer, width * height, &aboveCount);
     bool inkIsAbove = aboveCount < (width * height - aboveCount);
 
-    std::vector<CharBox> boxes = findBoxes(luminance.data(), width, height, threshold, inkIsAbove);
+    std::vector<CharBox> boxes = findBoxes(luminanceBuffer, width, height, threshold, inkIsAbove);
 
     result.reserve(boxes.size());
     for (const auto &box : boxes) {
         SegmentedChar segmented;
         segmented.box = box;
         segmented.patch.resize((size_t)patchSize * patchSize);
-        extractPatch(luminance.data(), width, height, box, segmented.patch.data(), patchSize);
+        extractPatch(luminanceBuffer, width, height, box, segmented.patch.data(), patchSize);
         result.push_back(std::move(segmented));
     }
     return result;
