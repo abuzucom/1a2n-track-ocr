@@ -74,6 +74,8 @@ static int otsuThreshold(const uint8_t *luminance, int count, long *outAboveCoun
 
 static std::vector<CharBox> findBoxes(const uint8_t *luminance, int width, int height,
                                        int threshold, bool inkIsAbove) {
+    // Determines if a given (x,y) pixel belongs to the ink (foreground character)
+    // based on the calculated global threshold and background polarity.
     auto isInk = [&](int x, int y) {
         uint8_t value = luminance[y * width + x];
         return inkIsAbove ? value > threshold : value <= threshold;
