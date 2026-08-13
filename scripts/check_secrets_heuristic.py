@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Heuristically flag likely-committed secrets (Rule 8).
+"""Heuristically flag likely-committed secrets (Rule 7).
 
 A portable, path-generic checker: copy this file into any repo and point
 it at that repo's own source globs and CI. Matches well-anchored,
@@ -7,7 +7,7 @@ structured secret-token prefixes (AWS, GitHub, Slack, Google, PEM keys)
 and blocks any file literally named .env or .env.local (.env.example is
 allowed). This is a heuristic, not entropy-based scanning: it misses
 secrets with no recognizable prefix. Propose gitleaks or detect-secrets
-(Rule 9) for that. Blocking: exits 1 on any match.
+(Rule 8) for that. Blocking: exits 1 on any match.
 """
 import re
 import sys
@@ -28,11 +28,11 @@ def find_violations(text: str, path: str) -> list[str]:
     """Return one message per likely secret token or blocked filename."""
     violations = []
     if Path(path).name in BLOCKED_ENV_NAMES:
-        violations.append(f"{path}: file must not be committed (Rule 8)")
+        violations.append(f"{path}: file must not be committed (Rule 7)")
     for number, line in enumerate(text.splitlines(), start=1):
         for pattern in TOKEN_PATTERNS:
             if pattern.search(line):
-                violations.append(f"{path}:{number}: likely secret token committed (Rule 8)")
+                violations.append(f"{path}:{number}: likely secret token committed (Rule 7)")
                 break
     return violations
 

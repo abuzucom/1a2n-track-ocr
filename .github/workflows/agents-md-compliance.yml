@@ -2,7 +2,7 @@ name: AGENTS.md Compliance
 
 # Adopted from abuzucom/agents. Divergences from the upstream copy:
 # actions are pinned by commit SHA rather than by major-version tag, and
-# python-version is pinned to a minor release, both per AGENTS.md rule 9.
+# python-version is pinned to a minor release, both per AGENTS.md rule 8.
 # Repo-specific checks that upstream does not ship live in
 # agents-checks.yml instead, so this file stays close to canonical.
 
@@ -84,13 +84,6 @@ jobs:
           files=(scripts/*.py)
           if [ ${#files[@]} -gt 0 ]; then
             python scripts/check_weak_hashing.py "${files[@]}"
-          fi
-      - name: Check for non-root containers
-        run: |
-          shopt -s nullglob
-          files=(Dockerfile* docker-compose*.yml docker-compose*.yaml compose*.yml compose*.yaml)
-          if [ ${#files[@]} -gt 0 ]; then
-            python scripts/check_dockerfile_root.py "${files[@]}"
           fi
       - name: Check for likely secrets
         run: |
