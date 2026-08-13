@@ -73,3 +73,12 @@ firmware/.pio/
 
 # firmware secrets, never commit real WiFi credentials or backend URLs
 firmware/src/config.h
+
+# Python
+__pycache__/
+*.pyc
+server/.venv/
+ml/.venv/
+
+# backend runtime output, not source
+server/output/
