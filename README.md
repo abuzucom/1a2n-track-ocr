@@ -229,9 +229,17 @@ naming, commit format, style rules, and security constraints. The checks
 in `scripts/` enforce the mechanically checkable subset, and CI runs them
 on every pull request.
 
-## Third-party assets
+## License
 
-- `ml/fonts/Coda-Regular.ttf`, `ml/fonts/Coda-ExtraBold.ttf`: Coda by
-  Vernon Adams, SIL Open Font License, see `ml/fonts/OFL.txt`.
-- `docs/` holds manufacturer datasheets, FCC filings, and product
-  manuals, retained for reference under their respective terms.
+MIT, see `LICENSE`.
+
+That covers the source code only. `docs/` retains manufacturer and
+regulatory documents, and `ml/fonts/` ships an OFL-licensed typeface;
+both remain the property of their owners. See `THIRD-PARTY-NOTICES.md`
+for attribution and for the license of every build and runtime
+dependency.
+
+One dependency is not permissive: the firmware statically links the
+Arduino ESP32 core, which is LGPL-2.1-or-later. That imposes nothing on
+distributing this source. Shipping a compiled firmware binary invokes
+LGPL section 6, satisfied here by the source being public.

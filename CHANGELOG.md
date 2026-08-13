@@ -9,6 +9,15 @@ until 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `LICENSE`: MIT.
+- `THIRD-PARTY-NOTICES.md`: attribution for the reference documents in
+  `docs/` and the OFL typeface in `ml/fonts/`, plus the license of every
+  build and runtime dependency. Records that the firmware statically
+  links the LGPL-2.1-or-later Arduino ESP32 core, and what that does and
+  does not require.
+
 ## [0.1.0] - 2026-08-13
 
 First implementation of the full capture to overlay pipeline. Backfilled
