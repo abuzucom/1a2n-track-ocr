@@ -10,19 +10,17 @@ field, and writes the result to files OBS can read.
 ## Status
 
 **Nothing in this repo has been tested against real hardware.** No XDJ
-unit and no W11 board were available during development. Everything was
-built to spec from the schematics and manuals in `docs/`. All
-calibration values (ROI coordinates, poll interval, confidence
-thresholds) are runtime-configurable rather than baked in, so a tester
-can adjust them without recompiling logic.
+unit and no W11 board were available during development; everything was
+built to spec from the schematics and manuals in `docs/`. Calibration
+values (ROI coordinates, poll interval, confidence thresholds) are
+configurable at runtime, so a tester can adjust them without rebuilding.
 
-Verification steps below are tagged `[local]` (runs without hardware,
-done) or `[remote]` (needs a physical rig, outstanding).
+The on-device OCR model is not trained. `firmware/src/ocr_model.h` is a
+zero-length placeholder, and the firmware skips on-device inference when
+no model is embedded. Training needs a dataset, which needs hardware.
 
-The on-device OCR model is not trained. `firmware/src/ocr_model.h` ships
-a zero-length placeholder, and the firmware skips on-device inference at
-runtime when no model is embedded. Training needs a real dataset, which
-needs real hardware.
+Verification steps below are tagged `[local]` (no hardware, done) or
+`[remote]` (needs a physical rig, outstanding).
 
 ## Hardware
 
@@ -93,12 +91,10 @@ fallback. Tesseract's output auto-labels the training data for the
 on-device model, and the arbiter uses their agreement rate to decide
 when the on-device model has earned the right to publish.
 
-Caddy and uvicorn are two separate processes that both must be running;
-see Setup below. Firmware never talks to uvicorn directly. `/static` and
-`/output` are unauthenticated by design (OBS cannot send a bearer
-token), and Caddy serves them straight off disk rather than proxying
-through the FastAPI app that enforces the token on `/frame` and
-`/result`.
+Caddy and uvicorn are separate processes; both must run. Firmware never
+talks to uvicorn directly. Caddy serves `/static` and `/output` off disk
+without authentication, since OBS cannot send a bearer token. Only
+`/frame` and `/result` are proxied and token-checked.
 
 ## Repo layout
 
@@ -159,10 +155,9 @@ The capture endpoints require a shared secret. Set `BACKEND_TOKEN` to a
 long random value, matching `BACKEND_TOKEN` in the firmware's `config.h`.
 The server refuses to start without it rather than running open.
 
-Bind uvicorn to loopback. Caddy is the only thing that should reach it,
-and Caddy runs on the same host. Binding to `0.0.0.0` puts a plaintext
-port on the network beside the HTTPS one, letting any LAN client bypass
-Caddy's TLS, security headers, logging, and request limits entirely.
+Bind uvicorn to loopback. Caddy runs on the same host and is the only
+thing that should reach it; binding to `0.0.0.0` would expose a
+plaintext port alongside the HTTPS one.
 
 ```bash
 cd server && pip install -r requirements.lock && BACKEND_TOKEN=your-long-random-value uvicorn app:app --host 127.0.0.1 --port 8000
@@ -185,13 +180,9 @@ uvicorn directly. Both processes run together.
    caddy trust
    ```
 4. Copy the CA's root certificate into the firmware's `config.h` as
-   `BACKEND_CA_CERT`. `firmware/src/config.h.example` documents where
-   Caddy stores it per platform (for example,
-   `~/.local/share/caddy/pki/authorities/local/root.crt` on Linux). This
-   is what lets the firmware verify it is actually talking to your
-   backend rather than trusting any certificate on the network; without
-   it, the token in the previous step could be handed to an impostor on
-   the same WiFi. See `SECURITY.md`.
+   `BACKEND_CA_CERT`. `firmware/src/config.h.example` lists where Caddy
+   stores it per platform. The firmware verifies the backend against
+   this CA; without it, it would accept any certificate on the network.
 
 With Caddy running, point your OBS Browser Source at
 `https://localhost/static/overlay.html`.
@@ -247,18 +238,17 @@ on-device path detects the region, segments characters, and classifies
 each one against a fixed vocabulary with a quantized int8 CNN.
 
 **No text detection.** The ROI is configured, not found. The screen
-layout is fixed, so this is a reasonable simplification, but it means a
-bumped camera breaks OCR until someone recalibrates the ROI.
+layout is fixed, so this holds, but a bumped camera breaks OCR until the
+ROI is recalibrated.
 
-**Character segmentation is the highest risk step.** The training data
-pipeline (`ml/prepare_chars.py`) segments with Tesseract's
-character-level boxes; the firmware (`firmware/src/char_segment.cpp`)
-segments with its own Otsu threshold plus column projection profile,
-because there is no Tesseract on-device. The two are not guaranteed to
-place boxes identically, which is a real train/inference distribution
-risk. Touching characters also produce overlapping boxes: a crop labeled
-`D` was observed to contain `De`, matching Tesseract's own box
-coordinates. Spot-check derived character crops before training on them.
+**Character segmentation is the highest risk step.** Training
+(`ml/prepare_chars.py`) segments with Tesseract's character-level boxes.
+The firmware (`firmware/src/char_segment.cpp`) uses its own Otsu
+threshold plus column projection, since there is no Tesseract on-device.
+The two do not place boxes identically, so training and inference see
+different distributions. Touching characters also produce overlapping
+boxes: a crop labeled `D` was observed to contain `De`, matching
+Tesseract's own coordinates. Spot-check derived crops before training.
 
 **Synthetic data supplements, it does not replace.** EuroSans Pro (the
 player's apparent UI font) is not licensed for use here. `ml/synth.py`

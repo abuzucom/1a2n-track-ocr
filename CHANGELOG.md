@@ -9,184 +9,74 @@ until 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `Caddyfile`: local HTTPS reverse proxy with security headers. Firmware
+  reaches the backend only through it.
+- `.github/workflows/app-tests.yml`: backend tests, firmware build,
+  manifest and lock agreement, and `caddy validate` in CI.
+- `scripts/check_lock_sync.py`: blocks when a requirements manifest and
+  its compiled lock disagree.
+- `scripts/sync.py` and the eight tool-specific copies of `AGENTS.md` it
+  generates.
+- `.editorconfig`, `.gitattributes`, `.claudeignore`.
+- `LICENSE` (MIT) and `THIRD-PARTY-NOTICES.md`.
+- `requirements.lock` for `server/`, `server/` dev, and `ml/`, with
+  hashes.
+
+### Changed
+
+- Pinned GitHub Actions by commit SHA, `esp32-camera` by commit, and the
+  Caddy CI image by digest. Tags are mutable.
+- `/frame` is a synchronous endpoint, so FastAPI runs its blocking
+  Tesseract call in a threadpool rather than on the event loop.
+- uvicorn binds to loopback. Caddy is the only entry point.
+- Setup installs from the lock files.
+
 ### Fixed
 
-- Output is published while the state lock is held, instead of
-  snapshotting under the lock and writing after releasing it. Two
-  concurrent updates could publish out of order, so an older snapshot
-  could land last and leave stale output until the next track change.
-- `now_playing` files are replaced atomically via a temp file and
-  rename. Writing in place truncates first, so an overlay polling
-  mid-write could read an empty or partial document.
+- Output is published under the state lock and written atomically.
+  Concurrent updates could publish out of order, and a reader could
+  observe a partially written file.
 - `arbiter.is_trusted` reads agreement history under the lock.
-  `_record_agreement` appends to those deques from other request
-  threads, and summing one mid-append can raise or average over a
-  window that changed underneath the read.
-- Dataset storage is bounded by bytes and free disk space, not just a
-  sample count. The count-only quota permitted roughly 78 GiB. Quota is
-  now reserved atomically before writing, so concurrent callers cannot
-  each see spare capacity and collectively exceed it.
-- Dataset filenames carry a random suffix. Keying on `player_id` plus
-  epoch milliseconds meant two frames for one rig in the same
-  millisecond collided, silently replacing one image while both wrote
-  label rows, leaving a label describing an image that no longer
-  existed.
-- Label appends are serialized, since concurrent appends can interleave
-  within a line and corrupt the JSONL index.
+- Dataset quota bounds bytes and free disk space, reserved atomically.
+  Filenames carry a random suffix; label appends are serialized.
+- Regenerated `server/requirements-dev.lock`, which installed pytest
+  8.4.2 while the manifest pinned 9.0.3 (GHSA-6w46-j5rx-g56g).
+- Division-by-zero guards in `firmware/src/ondevice_ocr.cpp` and
+  `ml/convert.py`.
+- `ml/train.py` shuffles before `validation_split`. Keras splits from
+  the tail, so the ordered labels file yielded an all-synthetic
+  validation set.
+- `firmware/src/ondevice_ocr.cpp` checks output tensor `dims->size`
+  before indexing.
+- Removed dead branches and duplicated calls in `ml/prepare_chars.py`,
+  `ml/convert.py`, `server/dataset.py`, `server/arbiter.py`, and
+  `firmware/src/char_segment.cpp`.
 
 ### Security
 
-- Caddy now caps request bodies at 4MB and sets read, write, and idle
-  timeouts. FastAPI parses a body while resolving endpoint parameters,
-  which happens before the auth dependency can reject the request, so
-  the application cannot enforce this without buffering the upload
-  first. The bound belongs at ingress.
-- uvicorn binds to loopback instead of all interfaces. Binding to
-  `0.0.0.0` exposed a plaintext port beside the HTTPS one, letting any
-  LAN client bypass Caddy's TLS, headers, logging, and limits.
-- Image dimensions are read from the header before decoding rather than
-  after. The check previously ran after `cv2.imdecode`, so a
-  decompression bomb had already been allocated by the time it was
-  rejected. The pixel budget is now 2 Mpx, chosen for a one-line ROI
-  crop; the old 4096-per-side limit permitted a 144 MiB array after the
-  3x upscale.
-- Tesseract calls take a 20 second deadline and run under a semaphore
-  bounding concurrent OCR subprocesses. Neither was bounded before.
-- `confidence` must be finite and within 0.0 through 1.0. Pydantic
-  accepts NaN and Infinity for a bare float, and `NaN < threshold` is
-  False, so a NaN confidence passed the low-confidence gate and counted
-  toward on-device trust.
-- The overlay's CSS and JavaScript moved into external files. Caddy
-  sends `default-src 'self'`, which blocked the previous inline
-  `<style>` and `<script>`, so the overlay could render blank when
-  served through the proxy.
-
-### Added
-
-- `app-tests.yml` workflow running the checks CI never ran: backend
-  pytest, firmware `pio run`, manifest and lock agreement, and
-  `caddy validate`. The existing workflows check policy and prose only,
-  so authentication could have been deleted from both endpoints with
-  every check still green.
-- `scripts/check_lock_sync.py`, blocking: verifies each
-  `requirements*.txt` pin matches its compiled `.lock`. An automated
-  dependency bump can edit a manifest and leave the lock alone, which
-  nothing caught by eye.
-
-### Fixed
-
-- Regenerated `server/requirements-dev.lock`, which still installed
-  pytest 8.4.2 while the manifest pinned 9.0.3. The stale version is
-  affected by GHSA-6w46-j5rx-g56g.
-
-### Security
-
-- Firmware now verifies the backend's TLS certificate against a pinned
-  local CA (`BACKEND_CA_CERT` in `config.h`, the Caddy `tls internal`
-  root) instead of calling `WiFiClientSecure::setInsecure()`. The
-  previous "protect token transit" framing only held against a passive
-  listener: `setInsecure()` accepts any certificate, so an active
-  attacker on the same network could present their own certificate and
-  receive the bearer token. Verification now rejects that.
-
-### Added
-
-- Added `Caddyfile` for a local reverse proxy enforcing HTTPS and OWASP Top 10 security headers.
-- Updated ESP32 firmware in `uploader.cpp` to use `WiFiClientSecure` to protect token transit.
-- Added `Caddyfile` to the architecture orientation map in `AGENTS.md` and repo layout in `README.md`.
-
-### Fixed
-
-- Added explicit division-by-zero guards in `firmware/src/ondevice_ocr.cpp` and `ml/convert.py` to prevent crashes from corrupt model parameters or empty datasets.
-- Shuffled training arrays before `validation_split` in `ml/train.py`.
-  Keras splits from the tail without shuffling, so the ordered labels
-  file produced a validation set of only synthetic samples.
-- Added output tensor `dims->size` precondition in
-  `firmware/src/ondevice_ocr.cpp` before indexing `data[size - 1]`,
-  matching the existing input tensor validation.
-- Hoisted duplicate `image_to_boxes` call in `ml/prepare_chars.py` and
-  replaced contradictory `.get()` vs direct `[]` access with consistent
-  direct access.
-- Removed impossible `not IMAGES_DIR.is_dir()` branch in
-  `server/dataset.py`; the sole caller creates the directory first.
-- Folded redundant `key not in _pending_tesseract` re-test and replaced
-  `setdefault` on a proven-absent key with direct assignment in
-  `server/arbiter.py`.
-- Removed tautological `if (top < bottom)` guard, redundant
-  `lastActiveX >= 0` check, and structurally unnecessary `std::max(1, ...)`
-  clamping in `firmware/src/char_segment.cpp`.
-- Removed unreachable empty-list guard in `ml/convert.py`; the caller
-  raises before reaching the function if samples is empty.
-### Security
-
-- Capture endpoints now require a shared bearer token, configured as
-  `BACKEND_TOKEN` on both the backend and the firmware. The server
-  refuses to start without one rather than serving them open. Comparison
-  uses `hmac.compare_digest`. `/static` and `/output` stay open because
-  OBS reads them and cannot send a header.
-- `player_id` and `capture_id` are validated against a strict identifier
-  pattern. Both reached filesystem paths unvalidated, so a crafted value
-  could write outside the intended directory, either through `../` or
-  through an absolute path, which `pathlib` honors by discarding the
-  left operand. Paths are now re-checked for containment where they are
-  built, so the boundary check is not the only thing standing between a
-  request and an arbitrary file write.
-- A missing `confidence` on `/result` no longer bypasses the on-device
-  confidence gate. It previously skipped the check entirely, so an
-  unmeasured result was treated as trustworthy.
-- Uploads are capped at 4 MB, must begin with the JPEG magic bytes, and
-  decoded dimensions are checked before the 3x upscale, which multiplies
-  pixel count ninefold and made small compressed images a memory bomb.
-- Dataset collection and per-player state are bounded. Both previously
-  grew without limit, keyed on a request-supplied value.
-- `cropRoi` validates `fb->len` and `fb->format` before its `memcpy`,
-  instead of trusting the frame descriptor to describe its own buffer.
+- Capture endpoints require a bearer token (`BACKEND_TOKEN`), compared
+  with `hmac.compare_digest`. The server refuses to start without one.
+  `/static` and `/output` stay open; OBS cannot send a header.
+- Firmware verifies the backend certificate against a pinned CA
+  (`BACKEND_CA_CERT`) instead of `WiFiClientSecure::setInsecure()`,
+  which accepted any certificate.
+- `player_id` and `capture_id` are validated, and write paths are
+  re-checked for containment. Both previously reached the filesystem
+  unvalidated.
+- `confidence` must be finite and within 0.0 through 1.0. A missing or
+  NaN value no longer bypasses the low-confidence gate.
+- Caddy caps request bodies at 4MB and sets connection timeouts.
+- Image dimensions are read from the header before decoding, with a
+  2 Mpx budget.
+- Tesseract calls have a 20 second deadline and a concurrency bound.
+- Uploads are size-capped and must begin with the JPEG magic bytes.
+- Dataset collection and per-player state are bounded.
+- `cropRoi` validates `fb->len` and `fb->format` before its `memcpy`.
+- Overlay CSS and JavaScript moved out of line, so the proxy's
+  `default-src 'self'` no longer blocks them.
 - `.gitignore` excludes `.env`, `*.pem`, `*.key`, and `secrets.*`.
-
-### Changed
-
-- `/frame` is a synchronous endpoint so FastAPI runs its blocking
-  Tesseract call in a threadpool. It previously stalled the event loop
-  for the duration of every request.
-
-### Added
-
-- `scripts/sync.py` from the `abuzucom/agents` template, and the eight
-  tool-specific copies of `AGENTS.md` it generates (`CLAUDE.md`,
-  `GEMINI.md`, `CONVENTIONS.md`, `.cursorrules`, `.clinerules`,
-  `.windsurfrules`, `.copilot-instructions`,
-  `.github/copilot-instructions.md`). The template's sync step had never
-  been run, so every agent tool other than those reading `AGENTS.md`
-  natively saw no conventions at all.
-- `.editorconfig`, `.gitattributes`, and `.claudeignore` from the same
-  template, copied verbatim. `.editorconfig` disables trailing-whitespace
-  trimming for Markdown, which is what stripped the hard line breaks out
-  of this repo's `AGENTS.md`. `.gitattributes` caused no renormalization:
-  all tracked files were already LF in the index.
-- `LICENSE`: MIT.
-- `THIRD-PARTY-NOTICES.md`: attribution for the reference documents in
-  `docs/` and the OFL typeface in `ml/fonts/`, plus the license of every
-  build and runtime dependency. Records that the firmware statically
-  links the LGPL-2.1-or-later Arduino ESP32 core, and what that does and
-  does not require.
-- `server/requirements.lock`, `server/requirements-dev.lock`, and
-  `ml/requirements.lock`: fully resolved dependency trees with hashes,
-  generated by `pip-compile`. The `.txt` files pinned only direct
-  dependencies, leaving 14 transitive packages floating for the backend
-  and 30 for the training pipeline.
-
-### Changed
-
-- Pinned GitHub Actions by commit SHA instead of by major-version tag
-  (`actions/checkout` v4.4.0, `actions/setup-python` v5.6.0). A tag can
-  be repointed by whoever controls the action's repository, so a tag pin
-  is not a pin. Versions are unchanged; this is a pinning fix, not an
-  upgrade.
-- Pinned `esp32-camera` by commit instead of by its `v2.1.7` tag, for
-  the same reason. Same code, immutable reference.
-- README installs from the lock files rather than the `.txt` files, and
-  documents that Tesseract's version cannot be pinned from this repo
-  while its output is the training set's ground truth.
 
 ## [0.1.0] - 2026-08-13
 
