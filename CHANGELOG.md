@@ -9,6 +9,24 @@ until 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `app-tests.yml` workflow running the checks CI never ran: backend
+  pytest, firmware `pio run`, manifest and lock agreement, and
+  `caddy validate`. The existing workflows check policy and prose only,
+  so authentication could have been deleted from both endpoints with
+  every check still green.
+- `scripts/check_lock_sync.py`, blocking: verifies each
+  `requirements*.txt` pin matches its compiled `.lock`. An automated
+  dependency bump can edit a manifest and leave the lock alone, which
+  nothing caught by eye.
+
+### Fixed
+
+- Regenerated `server/requirements-dev.lock`, which still installed
+  pytest 8.4.2 while the manifest pinned 9.0.3. The stale version is
+  affected by GHSA-6w46-j5rx-g56g.
+
 ### Security
 
 - Firmware now verifies the backend's TLS certificate against a pinned

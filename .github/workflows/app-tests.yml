@@ -1,0 +1,108 @@
+name: app-tests
+
+# Tests the application itself, as opposed to the policy and prose
+# checks in agents-checks.yml, agents-md-compliance.yml, and
+# sync-check.yml. Those three could all pass while the auth dependency
+# was deleted from both endpoints, the firmware stopped compiling, or a
+# lock drifted from its manifest, which is the gap this file closes.
+#
+# Versions are pinned rather than floating: actions by commit SHA,
+# Python and PlatformIO by exact version, the Caddy image by digest.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dev dependencies
+        run: pip install --require-hashes -r server/requirements-dev.lock
+
+      - name: Run backend tests
+        working-directory: server
+        run: python -m pytest tests/ -v
+
+  lock-consistency:
+    name: Manifest and lock agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Check every manifest against its lock
+        run: python scripts/check_lock_sync.py
+
+  firmware-build:
+    name: Firmware build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      # The toolchain and framework packages are hundreds of MB and
+      # dominate this job's runtime, so cache them across runs. Keyed on
+      # platformio.ini, since that is what selects the platform version.
+      - name: Cache PlatformIO packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.platformio/packages
+            ~/.platformio/platforms
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install platformio==6.1.19
+
+      # config.h is gitignored because it holds per-rig WiFi credentials
+      # and the backend token. The example has placeholder values, which
+      # is all a compile check needs.
+      - name: Provide a placeholder config.h
+        run: cp firmware/src/config.h.example firmware/src/config.h
+
+      - name: Build firmware
+        working-directory: firmware
+        run: pio run
+
+  caddy-validate:
+    name: Caddyfile validates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Pinned by digest, not by tag: a tag, including a patch tag, can
+      # be repushed by whoever controls the image. Digest is caddy
+      # 2.11.4-alpine.
+      - name: Validate Caddyfile
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w \
+            caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 \
+            caddy validate --config Caddyfile
