@@ -1,11 +1,18 @@
-// Phase 1: camera bring-up. Captures the configured ROI on a timer,
-// hashes it to detect a change, and logs to serial. No OCR, no network.
+// Captures the configured ROI on a timer, hashes it to detect a change,
+// and on change, uploads it as JPEG to the backend's /frame endpoint.
+// On-device OCR is not implemented yet (Phase 5).
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include <string.h>
 #include "esp_camera.h"
+#include "img_converters.h"
 #include "camera_pins.h"
 #include "config.h"
+#include "uploader.h"
+
+static const uint8_t JPEG_QUALITY = 80;
+static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 
 static const framesize_t FRAME_SIZE = FRAMESIZE_VGA;
 static const int FRAME_WIDTH = 640;
@@ -44,6 +51,40 @@ static void halt(const char *message) {
     while (true) {
         delay(1000);
     }
+}
+
+static void connectWiFi() {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.printf("connecting to WiFi \"%s\"", WIFI_SSID);
+
+    unsigned long startMs = millis();
+    while (WiFi.status() != WL_CONNECTED) {
+        if (millis() - startMs > WIFI_CONNECT_TIMEOUT_MS) {
+            halt("WiFi connect timed out, halting");
+        }
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.printf("\nWiFi connected, IP %s\n", WiFi.localIP().toString().c_str());
+}
+
+static void uploadRoiChange() {
+    uint8_t *jpegBuf = nullptr;
+    size_t jpegLen = 0;
+    bool ok = fmt2jpg(
+        roiBuffer, (size_t)ROI_WIDTH * ROI_HEIGHT * 2, ROI_WIDTH, ROI_HEIGHT,
+        PIXFORMAT_RGB565, JPEG_QUALITY, &jpegBuf, &jpegLen
+    );
+    if (!ok) {
+        Serial.println("JPEG encode failed, skipping upload");
+        return;
+    }
+
+    if (!uploadFrame(jpegBuf, jpegLen, PLAYER_ID, BACKEND_URL)) {
+        Serial.println("frame upload failed");
+    }
+    free(jpegBuf);
 }
 
 static bool initCamera() {
@@ -98,6 +139,8 @@ void setup() {
         halt("camera init failed, halting");
     }
 
+    connectWiFi();
+
     Serial.println("camera ready");
 }
 
@@ -127,5 +170,6 @@ void loop() {
     if (roiHash != lastRoiHash) {
         Serial.printf("ROI changed: hash 0x%08x\n", roiHash);
         lastRoiHash = roiHash;
+        uploadRoiChange();
     }
 }
