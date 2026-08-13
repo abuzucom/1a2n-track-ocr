@@ -72,7 +72,9 @@ bool ondeviceOcrReady() {
     return ready;
 }
 
-static char classifyPatch(const uint8_t *patch) {
+// classified is set to '\0' if inference failed for this patch, in
+// which case *confidence is left unset and the caller must not use it.
+static void classifyPatch(const uint8_t *patch, char *classified, float *confidence) {
     float scale = inputTensor->params.scale;
     int zeroPoint = inputTensor->params.zero_point;
     for (int i = 0; i < PATCH_SIZE * PATCH_SIZE; i++) {
@@ -81,7 +83,8 @@ static char classifyPatch(const uint8_t *patch) {
     }
 
     if (interpreter->Invoke() != kTfLiteOk) {
-        return '\0';
+        *classified = '\0';
+        return;
     }
 
     int bestIndex = 0;
@@ -92,21 +95,33 @@ static char classifyPatch(const uint8_t *patch) {
             bestIndex = i;
         }
     }
-    return CHARSET[bestIndex];
+    *classified = CHARSET[bestIndex];
+
+    float outputScale = outputTensor->params.scale;
+    int outputZeroPoint = outputTensor->params.zero_point;
+    *confidence = (bestValue - outputZeroPoint) * outputScale;
 }
 
-String runOndeviceOcr(const uint8_t *roiRgb565, int width, int height) {
-    String track;
+OndeviceResult runOndeviceOcr(const uint8_t *roiRgb565, int width, int height) {
+    OndeviceResult result = {String(), 0.0f};
     if (!ready) {
-        return track;
+        return result;
     }
 
     std::vector<SegmentedChar> chars = segmentAndExtract(roiRgb565, width, height, PATCH_SIZE);
+    float minConfidence = 1.0f;
     for (const auto &segmented : chars) {
-        char classified = classifyPatch(segmented.patch.data());
-        if (classified != '\0') {
-            track += classified;
+        char classified;
+        float confidence;
+        classifyPatch(segmented.patch.data(), &classified, &confidence);
+        if (classified == '\0') {
+            continue;
+        }
+        result.track += classified;
+        if (confidence < minConfidence) {
+            minConfidence = confidence;
         }
     }
-    return track;
+    result.confidence = result.track.length() > 0 ? minConfidence : 0.0f;
+    return result;
 }

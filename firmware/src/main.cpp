@@ -17,6 +17,7 @@
 
 static const uint8_t JPEG_QUALITY = 80;
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
+static const unsigned long WIFI_RECONNECT_TIMEOUT_MS = 10000;
 
 static const framesize_t FRAME_SIZE = FRAMESIZE_VGA;
 static const int FRAME_WIDTH = 640;
@@ -73,6 +74,33 @@ static void connectWiFi() {
     Serial.printf("\nWiFi connected, IP %s\n", WiFi.localIP().toString().c_str());
 }
 
+// Called at the top of every loop() iteration. WiFi drops are expected
+// over a long-running deployment; unlike the initial connect in
+// setup(), this never halts. It blocks the current iteration up to
+// WIFI_RECONNECT_TIMEOUT_MS trying to get back online, then gives up
+// and lets the caller skip this capture cycle, retrying on the next
+// one instead.
+static bool ensureWiFiConnected() {
+    if (WiFi.status() == WL_CONNECTED) {
+        return true;
+    }
+
+    Serial.println("WiFi disconnected, reconnecting");
+    WiFi.disconnect();
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+    unsigned long startMs = millis();
+    while (WiFi.status() != WL_CONNECTED) {
+        if (millis() - startMs > WIFI_RECONNECT_TIMEOUT_MS) {
+            Serial.println("WiFi reconnect timed out, will retry next cycle");
+            return false;
+        }
+        delay(500);
+    }
+    Serial.printf("WiFi reconnected, IP %s\n", WiFi.localIP().toString().c_str());
+    return true;
+}
+
 static void uploadRoiChange() {
     // One ID per capture, shared between the /frame and /result POSTs
     // below, so the backend's arbiter can pair the Tesseract and
@@ -97,8 +125,12 @@ static void uploadRoiChange() {
     free(jpegBuf);
 
     if (ondeviceOcrReady()) {
-        String track = runOndeviceOcr(roiBuffer, ROI_WIDTH, ROI_HEIGHT);
-        if (track.length() > 0 && !uploadResult(track, PLAYER_ID, captureId, BACKEND_URL)) {
+        OndeviceResult result = runOndeviceOcr(roiBuffer, ROI_WIDTH, ROI_HEIGHT);
+        // An empty track means segmentation found no characters (ROI
+        // text not present, e.g. the unit is on a screen with no track
+        // field), not a misread; there is nothing useful to upload.
+        if (result.track.length() > 0 &&
+            !uploadResult(result.track, result.confidence, PLAYER_ID, captureId, BACKEND_URL)) {
             Serial.println("on-device result upload failed");
         }
     }
@@ -169,6 +201,10 @@ void loop() {
         return;
     }
     lastCaptureMs = now;
+
+    if (!ensureWiFiConnected()) {
+        return;
+    }
 
     camera_fb_t *fb = esp_camera_fb_get();
     if (fb == nullptr) {

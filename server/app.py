@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Optional
+
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -11,11 +14,14 @@ import dataset
 import ocr
 import sinks
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
 
 class OndeviceResult(BaseModel):
     player_id: str
     capture_id: str
     track: str
+    confidence: Optional[float] = None
 
 sinks.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -37,5 +43,7 @@ async def receive_frame(
 
 @app.post("/result")
 async def receive_result(payload: OndeviceResult):
-    agree = arbiter.record_ondevice(payload.player_id, payload.capture_id, payload.track)
+    agree = arbiter.record_ondevice(
+        payload.player_id, payload.capture_id, payload.track, payload.confidence
+    )
     return {"received": True, "agree": agree}

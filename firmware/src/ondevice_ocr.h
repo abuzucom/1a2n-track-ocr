@@ -13,7 +13,18 @@ bool initOndeviceOcr();
 
 bool ondeviceOcrReady();
 
+struct OndeviceResult {
+    String track;
+    // Dequantized softmax value (0-1) of the least-confident classified
+    // character. The weakest character, not the average, sets how much
+    // to trust the whole string: one bad glyph makes the track wrong
+    // regardless of how confident the rest were.
+    float confidence;
+};
+
 // Segments roiRgb565 into characters and classifies each one. Returns
-// an empty string if initOndeviceOcr() has not succeeded; only call
-// this after checking ondeviceOcrReady().
-String runOndeviceOcr(const uint8_t *roiRgb565, int width, int height);
+// an empty track if initOndeviceOcr() has not succeeded (only call this
+// after checking ondeviceOcrReady()) or if segmentation found no
+// characters at all, which means the ROI's text was not found, not
+// misread (e.g. the unit is on a screen without a track field).
+OndeviceResult runOndeviceOcr(const uint8_t *roiRgb565, int width, int height);

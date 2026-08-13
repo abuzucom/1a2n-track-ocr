@@ -84,3 +84,39 @@ def test_pending_tesseract_cache_is_bounded(reset_arbiter_state):
     assert len(arbiter._pending_tesseract) == arbiter.PENDING_CAPACITY
     assert ("deck1", "0") not in arbiter._pending_tesseract
     assert ("deck1", str(arbiter.PENDING_CAPACITY + 9)) in arbiter._pending_tesseract
+
+
+def test_empty_tesseract_track_is_not_found_not_published(reset_arbiter_state):
+    changed = arbiter.record_tesseract("deck1", "100", "   ", 95.0)
+    assert changed is False
+    assert reset_arbiter_state == []
+    assert ("deck1", "100") not in arbiter._pending_tesseract
+
+
+def test_low_confidence_tesseract_track_holds_last_known_good(reset_arbiter_state):
+    changed = arbiter.record_tesseract(
+        "deck1", "100", "Garbled Read", arbiter.TESSERACT_CONFIDENCE_THRESHOLD - 1
+    )
+    assert changed is False
+    assert reset_arbiter_state == []
+    assert ("deck1", "100") not in arbiter._pending_tesseract
+
+
+def test_empty_ondevice_track_is_ignored(reset_arbiter_state):
+    arbiter.record_tesseract("deck1", "100", "Artist - Title", 90.0)
+    reset_arbiter_state.clear()
+    result = arbiter.record_ondevice("deck1", "100", "  ")
+    assert result is None
+    assert reset_arbiter_state == []
+
+
+def test_low_confidence_ondevice_track_is_ignored_and_not_scored(reset_arbiter_state):
+    arbiter.record_tesseract("deck1", "100", "Artist - Title", 90.0)
+    result = arbiter.record_ondevice(
+        "deck1", "100", "Artist - Title", arbiter.ONDEVICE_CONFIDENCE_THRESHOLD - 0.1
+    )
+    assert result is None
+    assert "deck1" not in arbiter._agreement_history
+    # Still pending: a low-confidence on-device read should not consume
+    # the cached Tesseract result, since no real comparison happened.
+    assert ("deck1", "100") in arbiter._pending_tesseract
