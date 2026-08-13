@@ -28,6 +28,15 @@ BINARY_EXTENSIONS = {
 # formats, is still expected to be ASCII per the policy's own carve-out.
 LITERAL_DATA_EXTENSIONS = {".po", ".mo"}
 
+# Third-party license text must be preserved verbatim, not edited to fit
+# this repo's style rules.
+LICENSE_FILENAMES = {
+    "license", "license.txt", "license.md",
+    "copying", "copying.txt",
+    "notice", "notice.txt",
+    "ofl.txt",
+}
+
 
 def run_git(args: list[str]) -> str:
     result = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
@@ -46,6 +55,8 @@ def is_skipped(path: str) -> bool:
     if any(lower.endswith(ext) for ext in BINARY_EXTENSIONS):
         return True
     if any(lower.endswith(ext) for ext in LITERAL_DATA_EXTENSIONS):
+        return True
+    if lower.rsplit("/", 1)[-1] in LICENSE_FILENAMES:
         return True
     return False
 
