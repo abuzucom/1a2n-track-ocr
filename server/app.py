@@ -52,7 +52,7 @@ app.mount("/output", StaticFiles(directory=str(sinks.OUTPUT_DIR)), name="output"
 # blocks. As an async endpoint it stalled the event loop for the whole
 # call, serializing concurrent requests. FastAPI runs a sync endpoint in
 # a threadpool instead.
-@app.post("/frame", dependencies=[Depends(auth.require_token)])
+@app.post("/frame")
 def receive_frame(
     player_id: Annotated[str, Form()],
     capture_id: Annotated[str, Form()],
