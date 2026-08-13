@@ -27,6 +27,15 @@ BINARY_EXTENSIONS = {
     ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".mp3", ".exe", ".dll",
 }
 
+# Third-party license text must be preserved verbatim, not edited to fit
+# this repo's style rules.
+LICENSE_FILENAMES = {
+    "license", "license.txt", "license.md",
+    "copying", "copying.txt",
+    "notice", "notice.txt",
+    "ofl.txt",
+}
+
 EM_DASH = "\u2014"
 EN_DASH = "\u2013"
 
@@ -68,6 +77,11 @@ def is_binary_path(path: str) -> bool:
     return any(lower.endswith(ext) for ext in BINARY_EXTENSIONS)
 
 
+def is_license_file(path: str) -> bool:
+    name = path.rsplit("/", 1)[-1].lower()
+    return name in LICENSE_FILENAMES
+
+
 def has_ascii_dash_violation(line: str) -> bool:
     for match in ASCII_DASH_RUN_RE.finditer(line):
         start, end = match.span()
@@ -100,7 +114,7 @@ def scan_file(path: str) -> list[str]:
 def main() -> int:
     violations = []
     for path in tracked_files():
-        if path.endswith(SELF_PATH_SUFFIX) or is_binary_path(path):
+        if path.endswith(SELF_PATH_SUFFIX) or is_binary_path(path) or is_license_file(path):
             continue
         violations.extend(scan_file(path))
 

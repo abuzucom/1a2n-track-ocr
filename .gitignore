@@ -82,3 +82,9 @@ ml/.venv/
 
 # backend runtime output, not source
 server/output/
+
+# generated/derived ml data and models, not source; rebuild via
+# prepare_chars.py, synth.py, train.py, convert.py
+ml/dataset/chars/
+ml/model_output/
+firmware/models/
