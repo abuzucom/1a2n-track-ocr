@@ -2,7 +2,7 @@
 """Warn about likely non-English prose in the given files.
 
 A stopword-ratio heuristic, not true language detection (no dependency
-added; see AGENTS.md Rule 9). Targets Latin-script languages only
+added; see AGENTS.md Rule 8). Targets Latin-script languages only
 (Spanish, French, German, Portuguese, Italian): Chinese, Japanese, and
 Korean script is already non-ASCII and caught by check_ascii.py instead.
 

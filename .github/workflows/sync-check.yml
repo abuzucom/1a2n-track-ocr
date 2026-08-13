@@ -2,7 +2,7 @@ name: Convention Sync Check
 
 # Adopted from abuzucom/agents. Divergences from the upstream copy:
 # actions are pinned by commit SHA rather than by major-version tag, and
-# python-version is pinned to a minor release, both per AGENTS.md rule 9.
+# python-version is pinned to a minor release, both per AGENTS.md rule 8.
 
 on:
   push:
