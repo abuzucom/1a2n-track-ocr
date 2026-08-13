@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Now Playing</title>
+<style>
+  body {
+    margin: 0;
+    background: transparent;
+    font-family: sans-serif;
+    color: #fff;
+  }
+  #track {
+    font-size: 2em;
+    font-weight: bold;
+  }
+  #artist {
+    font-size: 1.2em;
+    opacity: 0.8;
+  }
+</style>
+</head>
+<body>
+<div id="track"></div>
+<div id="artist"></div>
+<script>
+  const POLL_INTERVAL_MS = 5000;
+
+  async function refresh() {
+    try {
+      const response = await fetch("/output/now_playing.json", { cache: "no-store" });
+      const data = await response.json();
+      const players = Object.values(data.players || {});
+      const first = players[0];
+      document.getElementById("track").textContent = first ? first.track : "";
+      document.getElementById("artist").textContent = first && first.artist ? first.artist : "";
+    } catch (error) {
+      console.error("now_playing.json fetch failed, keeping last known value:", error);
+    }
+  }
+
+  refresh();
+  setInterval(refresh, POLL_INTERVAL_MS);
+</script>
+</body>
+</html>
