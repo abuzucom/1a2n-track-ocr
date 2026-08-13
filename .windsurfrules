@@ -58,6 +58,7 @@ server/        app.py HTTP entry, ocr.py Tesseract, arbiter.py source
                arbitration, sinks.py OBS output, dataset.py auto-labeling
 ml/            charset.py, prepare_chars.py, synth.py, train.py,
                convert.py, export_charset.py, export_model_header.py
+Caddyfile      Local HTTPS reverse proxy and security headers configuration
 ```
 
 Entry points: firmware `setup()`/`loop()` in `main.cpp`; `server/app.py`.

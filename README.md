@@ -91,6 +91,7 @@ when the on-device model has earned the right to publish.
 | `ml/` | Character classifier training pipeline (see `ml/README.md`) |
 | `docs/` | Board schematics, FCC filings, chip datasheets, player manuals |
 | `scripts/` | AGENTS.md policy check scripts, run by CI |
+| `Caddyfile` | Local HTTPS reverse proxy configuration |
 
 ## Setup
 
