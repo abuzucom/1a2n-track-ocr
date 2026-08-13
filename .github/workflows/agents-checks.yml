@@ -49,3 +49,6 @@ jobs:
 
       - name: English only (warning only)
         run: python scripts/check_english_only.py
+
+      - name: Docs updated (warning only)
+        run: python scripts/check_docs_updated.py --base "origin/${{ github.event.pull_request.base.ref || 'main' }}" --head HEAD

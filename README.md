@@ -1,1 +1,245 @@
 # 1a2n-track-ocr
+
+Read the currently playing track off a Pioneer XDJ-1000 or XDJ-1000MK2
+screen with a camera, and publish it to an OBS "now playing" overlay.
+
+Neither unit exposes the playing track over an API. This system points a
+W11 ESP32-S3 camera board at the player's screen, OCRs the track name
+field, and writes the result to files OBS can read.
+
+## Status
+
+**Nothing in this repo has been tested against real hardware.** No XDJ
+unit and no W11 board were available during development. Everything was
+built to spec from the schematics and manuals in `docs/`. All
+calibration values (ROI coordinates, poll interval, confidence
+thresholds) are runtime-configurable rather than baked in, so a tester
+can adjust them without recompiling logic.
+
+Verification steps below are tagged `[local]` (runs without hardware,
+done) or `[remote]` (needs a physical rig, outstanding).
+
+The on-device OCR model is not trained. `firmware/src/ocr_model.h` ships
+a zero-length placeholder, and the firmware skips on-device inference at
+runtime when no model is embedded. Training needs a real dataset, which
+needs real hardware.
+
+## Hardware
+
+| Part | Detail |
+|---|---|
+| Board | W11 ESP32-S3 (ESP32-S3R8, 16MB quad flash, 8MB octal PSRAM) |
+| Camera | OV5640 on the W11 expansion board, DVP interface |
+| Target | Pioneer XDJ-1000 or XDJ-1000MK2 |
+
+Both player generations use the same screen layout, so one ROI and one
+classifier serve both. See `docs/hardware_documentation.md` for the pin
+map and `docs/xdj_screen_reference.md` for the screen layout.
+
+One rig (one board plus camera) watches one player. A 2-deck setup runs
+two rigs, each with its own `PLAYER_ID`.
+
+## How it works
+
+```
+[XDJ screen] ...camera...> [W11 ESP32-S3 firmware]
+                                     |
+              on a timer (CAPTURE_INTERVAL_MS, default 20s):
+              crop to the track name ROI, hash it, compare to
+              the previous sample, act only when it changes
+                                     |
+                    +================+================+
+                    |                                 |
+          on-device OCR                       JPEG crop uploaded
+          (TFLite-Micro char                  to POST /frame
+           classifier, when a
+           model is embedded)
+                    |                                 |
+        POST /result                          [Python backend]
+        {track, confidence,                    Tesseract OCR runs on
+         capture_id}                           every frame. Records the
+                    |                          crop plus its label into
+                    |                          ml/dataset/ for training.
+                    |                                 |
+                    +================+================+
+                                     |
+                              [server/arbiter.py]
+                    Pairs the two results by capture_id.
+                    Tesseract publishes by default. On-device
+                    publishes only after its agreement rate
+                    clears a trust threshold. Rejects empty
+                    and low-confidence reads from both.
+                                     |
+                    +================+================+
+                    |                                 |
+        now_playing.txt                    now_playing.json plus
+        (OBS Text source,                  static/overlay.html
+         read from file)                   (OBS Browser Source)
+```
+
+Both OCR paths run on every changed frame. They are not primary and
+fallback. Tesseract's output auto-labels the training data for the
+on-device model, and the arbiter uses their agreement rate to decide
+when the on-device model has earned the right to publish.
+
+## Repo layout
+
+| Path | Contents |
+|---|---|
+| `firmware/` | PlatformIO project, Arduino framework, ESP32-S3 |
+| `server/` | FastAPI backend, Tesseract OCR, arbitration, output sinks |
+| `ml/` | Character classifier training pipeline (see `ml/README.md`) |
+| `docs/` | Board schematics, FCC filings, chip datasheets, player manuals |
+| `scripts/` | AGENTS.md policy check scripts, run by CI |
+
+## Setup
+
+### Backend
+
+Needs the Tesseract OCR engine binary installed separately (system
+package manager, or the Windows installer). `server/ocr.py` finds it on
+PATH, or set `TESSERACT_CMD` to an explicit path.
+
+```bash
+cd server && pip install -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+Output lands in `server/output/`: `now_playing_<player_id>.txt`,
+`now_playing.txt` (single rig only), and `now_playing.json`. Point an
+OBS Text source at the `.txt` file, or an OBS Browser Source at
+`http://<backend>:8000/static/overlay.html`.
+
+### Firmware
+
+```bash
+cd firmware && cp src/config.h.example src/config.h
+```
+
+Edit `src/config.h`: WiFi credentials, `BACKEND_URL`, `PLAYER_ID`, and
+the ROI. `config.h` is gitignored and must never be committed. The ROI
+values shipped in the example are placeholders; calibrate them against
+the physical camera mount.
+
+```bash
+cd firmware && pio run && pio run -t upload
+```
+
+### Training the on-device model
+
+Only useful once `ml/dataset/` holds real captures from a running rig.
+
+```bash
+cd ml && pip install -r requirements.txt
+```
+
+```bash
+cd ml && python synth.py && python prepare_chars.py && python train.py && python convert.py
+```
+
+Then embed the result and rebuild the firmware:
+
+```bash
+cd ml && python export_charset.py && python export_model_header.py ../firmware/models/ocr_model.tflite
+```
+
+## Design decisions
+
+**On-device OCR is scoped to one font, one field.** General purpose OCR
+does not fit the ESP32-S3's compute and memory budget. Both players
+render track text in a fixed font at a fixed screen position, so the
+on-device path detects the region, segments characters, and classifies
+each one against a fixed vocabulary with a quantized int8 CNN.
+
+**No text detection.** The ROI is configured, not found. The screen
+layout is fixed, so this is a reasonable simplification, but it means a
+bumped camera breaks OCR until someone recalibrates the ROI.
+
+**Character segmentation is the highest risk step.** The training data
+pipeline (`ml/prepare_chars.py`) segments with Tesseract's
+character-level boxes; the firmware (`firmware/src/char_segment.cpp`)
+segments with its own Otsu threshold plus column projection profile,
+because there is no Tesseract on-device. The two are not guaranteed to
+place boxes identically, which is a real train/inference distribution
+risk. Touching characters also produce overlapping boxes: a crop labeled
+`D` was observed to contain `De`, matching Tesseract's own box
+coordinates. Spot-check derived character crops before training on them.
+
+**Synthetic data supplements, it does not replace.** EuroSans Pro (the
+player's apparent UI font) is not licensed for use here. `ml/synth.py`
+renders training characters in Coda instead (Google Fonts, SIL OFL,
+committed under `ml/fonts/`), which is visually close. Synthetic renders
+cover characters that real captures underrepresent. `ml/train.py` logs
+the real versus synthetic ratio per class so a class trained almost
+entirely on synthetic data stays visible.
+
+**Track text is the source of truth; artist is derived.** The Normal
+playback screen has one track text field and no separate artist field,
+on either generation. Whether an artist can be split out depends on how
+the track was tagged on the source USB drive. `server/sinks.py` parses a
+leading artist only when the text matches an `Artist - Title` shape, and
+keeps the verbatim text regardless.
+
+**Text not found is distinct from a misread.** The Performance screen
+does not show the track name field. An empty OCR result holds the last
+known good value instead of blanking the overlay.
+
+## Build phases
+
+All seven phases are implemented. Phases marked below still need real
+hardware or real data to be considered validated.
+
+| Phase | Scope | State |
+|---|---|---|
+| 1 | Firmware camera bring-up, ROI crop, change detection | Built, needs `[remote]` check |
+| 2 | Backend, Tesseract OCR, output sinks | Built, tested `[local]` |
+| 3 | Auto-labeled dataset collection | Built, needs real captures |
+| 4 | Character classifier training and int8 quantization | Built, validated on synthetic data only |
+| 5 | On-device TFLite-Micro inference | Built, no trained model yet |
+| 6 | Arbitration between the two OCR sources | Built, tested `[local]` |
+| 7 | WiFi reconnect, retry/backoff, confidence rejection | Built, needs `[remote]` check |
+
+Outstanding, not a build phase: recreate the W11 schematics as an
+editable KiCad project, with a PDF plot and a BOM, in `docs/`.
+
+## Verification
+
+`[local]`, done:
+
+- `pio run` builds the firmware clean. Requires a `config.h`; copy the
+  example first.
+- `pytest server/tests/` covers the arbiter's agreement tracking, trust
+  threshold, and rejection paths.
+- The policy check scripts in `scripts/` pass, and run on every PR.
+
+`[remote]`, outstanding, needs a tester with real hardware:
+
+- Confirm the camera captures and the ROI actually frames the track name
+  text on a physical unit.
+- Confirm changing tracks produces a correct `track` result end to end.
+- Spot-check the auto-labeled dataset against the real captures before
+  training on it.
+- Confirm a WiFi drop recovers without a manual reset, and that a
+  backend restart mid-upload exercises the retry path.
+- Confirm OBS reflects updates from the real device.
+
+## Conventions
+
+`AGENTS.md` defines the policy this repo is developed under: branch
+naming, commit format, style rules, and security constraints. The checks
+in `scripts/` enforce the mechanically checkable subset, and CI runs them
+on every pull request.
+
+## License
+
+MIT, see `LICENSE`.
+
+That covers the source code only. `docs/` retains manufacturer and
+regulatory documents, and `ml/fonts/` ships an OFL-licensed typeface;
+both remain the property of their owners. See `THIRD-PARTY-NOTICES.md`
+for attribution and for the license of every build and runtime
+dependency.
+
+One dependency is not permissive: the firmware statically links the
+Arduino ESP32 core, which is LGPL-2.1-or-later. That imposes nothing on
+distributing this source. Shipping a compiled firmware binary invokes
+LGPL section 6, satisfied here by the source being public.
