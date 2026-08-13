@@ -11,6 +11,18 @@ until 1.0.0.
 
 ### Added
 
+- `scripts/sync.py` from the `abuzucom/agents` template, and the eight
+  tool-specific copies of `AGENTS.md` it generates (`CLAUDE.md`,
+  `GEMINI.md`, `CONVENTIONS.md`, `.cursorrules`, `.clinerules`,
+  `.windsurfrules`, `.copilot-instructions`,
+  `.github/copilot-instructions.md`). The template's sync step had never
+  been run, so every agent tool other than those reading `AGENTS.md`
+  natively saw no conventions at all.
+- `.editorconfig`, `.gitattributes`, and `.claudeignore` from the same
+  template, copied verbatim. `.editorconfig` disables trailing-whitespace
+  trimming for Markdown, which is what stripped the hard line breaks out
+  of this repo's `AGENTS.md`. `.gitattributes` caused no renormalization:
+  all tracked files were already LF in the index.
 - `LICENSE`: MIT.
 - `THIRD-PARTY-NOTICES.md`: attribution for the reference documents in
   `docs/` and the OFL typeface in `ml/fonts/`, plus the license of every
