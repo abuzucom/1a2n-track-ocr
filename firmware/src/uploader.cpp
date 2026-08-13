@@ -10,6 +10,18 @@
 static const char *DASH_DASH = "\x2d\x2d";
 static const char *BOUNDARY_VALUE = "1a2nTrackOcrBoundary";
 
+static const int MAX_ATTEMPTS = 3;
+static const unsigned long RETRY_BASE_DELAY_MS = 500;
+
+static int postFrameOnce(const uint8_t *body, size_t totalLen, const char *backendUrl) {
+    HTTPClient http;
+    http.begin(String(backendUrl) + "/frame");
+    http.addHeader("Content-Type", String("multipart/form-data; boundary=") + BOUNDARY_VALUE);
+    int statusCode = http.POST(const_cast<uint8_t *>(body), totalLen);
+    http.end();
+    return statusCode;
+}
+
 bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
                   const String &captureId, const char *backendUrl) {
     String delimiter = String(DASH_DASH) + BOUNDARY_VALUE;
@@ -35,18 +47,21 @@ bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
     memcpy(body + preamble.length(), jpegData, jpegLen);
     memcpy(body + preamble.length() + jpegLen, closing.c_str(), closing.length());
 
-    HTTPClient http;
-    http.begin(String(backendUrl) + "/frame");
-    http.addHeader("Content-Type", String("multipart/form-data; boundary=") + BOUNDARY_VALUE);
-    int statusCode = http.POST(body, totalLen);
-    http.end();
-    free(body);
-
-    if (statusCode != 200) {
-        Serial.printf("uploadFrame: backend returned status %d\n", statusCode);
-        return false;
+    bool ok = false;
+    for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        int statusCode = postFrameOnce(body, totalLen, backendUrl);
+        if (statusCode == 200) {
+            ok = true;
+            break;
+        }
+        Serial.printf("uploadFrame: attempt %d/%d, backend returned status %d\n", attempt + 1,
+                       MAX_ATTEMPTS, statusCode);
+        if (attempt + 1 < MAX_ATTEMPTS) {
+            delay(RETRY_BASE_DELAY_MS << attempt);
+        }
     }
-    return true;
+    free(body);
+    return ok;
 }
 
 static String jsonEscape(const String &input) {
@@ -74,21 +89,32 @@ static String jsonEscape(const String &input) {
     return out;
 }
 
-bool uploadResult(const String &track, const char *playerId, const String &captureId,
-                   const char *backendUrl) {
-    String body = String("{\"player_id\":\"") + jsonEscape(String(playerId)) +
-                  "\",\"capture_id\":\"" + jsonEscape(captureId) +
-                  "\",\"track\":\"" + jsonEscape(track) + "\"}";
-
+static int postResultOnce(const String &body, const char *backendUrl) {
     HTTPClient http;
     http.begin(String(backendUrl) + "/result");
     http.addHeader("Content-Type", "application/json");
     int statusCode = http.POST(body);
     http.end();
+    return statusCode;
+}
 
-    if (statusCode != 200) {
-        Serial.printf("uploadResult: backend returned status %d\n", statusCode);
-        return false;
+bool uploadResult(const String &track, float confidence, const char *playerId,
+                   const String &captureId, const char *backendUrl) {
+    String body = String("{\"player_id\":\"") + jsonEscape(String(playerId)) +
+                  "\",\"capture_id\":\"" + jsonEscape(captureId) +
+                  "\",\"track\":\"" + jsonEscape(track) +
+                  "\",\"confidence\":" + String(confidence, 4) + "}";
+
+    for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        int statusCode = postResultOnce(body, backendUrl);
+        if (statusCode == 200) {
+            return true;
+        }
+        Serial.printf("uploadResult: attempt %d/%d, backend returned status %d\n", attempt + 1,
+                       MAX_ATTEMPTS, statusCode);
+        if (attempt + 1 < MAX_ATTEMPTS) {
+            delay(RETRY_BASE_DELAY_MS << attempt);
+        }
     }
-    return true;
+    return false;
 }

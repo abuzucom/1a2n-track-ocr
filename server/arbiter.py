@@ -3,16 +3,23 @@ decides which one feeds sinks.py, and tracks on-device agreement.
 
 Firmware always uploads a frame to /frame; it only ever adds a /result
 call afterward, and only when a model is loaded and ready. So Tesseract
-is the default-trusted source: /frame writes to sinks immediately on
-every capture. A /result call, when it comes, is a delayed comparison
-signal keyed on the same capture_id as the frame it was derived from.
-It does not write to sinks unless the on-device model's recent agreement
-rate with Tesseract has crossed TRUST_THRESHOLD, per the plan's "default
-to Tesseract until on-device agreement is consistently high."
+is the default-trusted source: /frame writes to sinks on every capture
+that clears the confidence bar. A /result call, when it comes, is a
+delayed comparison signal keyed on the same capture_id as the frame it
+was derived from. It does not write to sinks unless the on-device
+model's recent agreement rate with Tesseract has crossed
+TRUST_THRESHOLD, per the plan's "default to Tesseract until on-device
+agreement is consistently high."
+
+An empty track from either OCR path means the ROI's text was not
+found (e.g. the unit is on the Performance screen, which does not show
+a track field), not a misread. Track holds the last known good value:
+neither case overwrites sinks with a low-confidence or empty result.
 """
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections import deque
 from typing import Optional
@@ -23,16 +30,40 @@ AGREEMENT_WINDOW_SIZE = 20
 TRUST_THRESHOLD = 0.9
 PENDING_CAPACITY = 200
 
+# Tesseract's image_to_data confidence is 0-100. Below this, a non-empty
+# result is treated as too unreliable to publish or to use as ground
+# truth for on-device agreement tracking.
+TESSERACT_CONFIDENCE_THRESHOLD = 40.0
+
+# The on-device model's per-character confidence is dequantized from an
+# int8 softmax output, so it is a 0-1 float, not the 0-100 scale above.
+ONDEVICE_CONFIDENCE_THRESHOLD = 0.6
+
+logger = logging.getLogger(__name__)
+
 _lock = threading.Lock()
 _pending_tesseract: dict[tuple[str, str], str] = {}
 _pending_order: deque[tuple[str, str]] = deque()
 _agreement_history: dict[str, deque] = {}
 
 
-def record_tesseract(player_id: str, capture_id: str, track: str, confidence: Optional[float]) -> bool:
-    """Handle a /frame result. Feeds sinks immediately and caches the
-    result briefly so a later /result call for the same capture_id can
-    be compared against it."""
+def record_tesseract(player_id: str, capture_id: str, track: str, confidence: float) -> bool:
+    """Handle a /frame result. Feeds sinks only if the read clears the
+    confidence bar; caches it briefly either way so long as it is
+    non-empty, so a later /result call for the same capture_id can be
+    compared against it. Returns True if it changed published output."""
+    stripped = track.strip()
+    if not stripped:
+        logger.info("tesseract: no track text found for %s/%s", player_id, capture_id)
+        return False
+
+    if confidence < TESSERACT_CONFIDENCE_THRESHOLD:
+        logger.info(
+            "tesseract: rejecting low-confidence read for %s/%s (%.1f < %.1f): %r",
+            player_id, capture_id, confidence, TESSERACT_CONFIDENCE_THRESHOLD, track,
+        )
+        return False
+
     key = (player_id, capture_id)
     with _lock:
         if key not in _pending_tesseract and len(_pending_order) >= PENDING_CAPACITY:
@@ -59,26 +90,41 @@ def is_trusted(player_id: str) -> bool:
     return sum(history) / len(history) >= TRUST_THRESHOLD
 
 
-def record_ondevice(player_id: str, capture_id: str, track: str) -> Optional[bool]:
+def record_ondevice(
+    player_id: str, capture_id: str, track: str, confidence: Optional[float] = None
+) -> Optional[bool]:
     """Handle a /result result. Compares against the cached Tesseract
     result for the same capture_id, if still pending. Returns whether
-    they agreed, or None if there was nothing to compare against.
-    Writes to sinks only once the on-device model is trusted for
-    player_id."""
+    they agreed, or None if there was nothing to compare against (no
+    matching Tesseract result cached, an empty on-device track, or a
+    confidence below ONDEVICE_CONFIDENCE_THRESHOLD). Writes to sinks
+    only once the on-device model is trusted for player_id."""
+    stripped = track.strip()
+    if not stripped:
+        logger.info("on-device: no track text found for %s/%s", player_id, capture_id)
+        return None
+
+    if confidence is not None and confidence < ONDEVICE_CONFIDENCE_THRESHOLD:
+        logger.info(
+            "on-device: rejecting low-confidence read for %s/%s (%.2f < %.2f): %r",
+            player_id, capture_id, confidence, ONDEVICE_CONFIDENCE_THRESHOLD, track,
+        )
+        return None
+
     key = (player_id, capture_id)
     with _lock:
         tesseract_track = _pending_tesseract.pop(key, None)
 
     if tesseract_track is None:
-        print(f"arbiter: no pending Tesseract result for {player_id}/{capture_id}")
+        logger.info("on-device: no pending Tesseract result for %s/%s", player_id, capture_id)
         return None
 
     agree = track == tesseract_track
     _record_agreement(player_id, agree)
     if not agree:
-        print(
-            f"arbiter: disagreement for {player_id}/{capture_id}: "
-            f"on-device={track!r} tesseract={tesseract_track!r}"
+        logger.warning(
+            "arbiter: disagreement for %s/%s: on-device=%r tesseract=%r",
+            player_id, capture_id, track, tesseract_track,
         )
 
     if is_trusted(player_id):
