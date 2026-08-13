@@ -114,11 +114,10 @@ def extract_chars(image_path: Path) -> tuple[list[tuple[str, Image.Image, float]
     CONFIDENCE_THRESHOLD."""
     image = preprocess(Image.open(image_path))
     confidence = _mean_word_confidence(image)
-    if confidence < CONFIDENCE_THRESHOLD:
-        boxes = pytesseract.image_to_boxes(image, output_type=pytesseract.Output.DICT)
-        return [], len(boxes.get("char", []))
-
     boxes = pytesseract.image_to_boxes(image, output_type=pytesseract.Output.DICT)
+    if confidence < CONFIDENCE_THRESHOLD:
+        return [], len(boxes["char"])
+
     height = image.height
 
     results = []

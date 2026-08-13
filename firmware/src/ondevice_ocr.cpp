@@ -57,6 +57,10 @@ bool initOndeviceOcr() {
         return false;
     }
 
+    if (outputTensor->dims->size == 0) {
+        Serial.println("on-device OCR model output has no dimensions, skipping");
+        return false;
+    }
     int outputSize = outputTensor->dims->data[outputTensor->dims->size - 1];
     if (outputSize != CHARSET_SIZE) {
         Serial.println("on-device OCR model output size does not match CHARSET_SIZE, skipping");

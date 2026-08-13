@@ -33,9 +33,12 @@ _capacity_warned = False
 
 
 def _at_capacity() -> bool:
+    """Check whether the dataset image directory is at capacity.
+
+    Called only from record(), which creates IMAGES_DIR before this
+    call, so the directory is guaranteed to exist.
+    """
     global _capacity_warned
-    if not IMAGES_DIR.is_dir():
-        return False
     if sum(1 for _ in IMAGES_DIR.glob("*.jpg")) < MAX_SAMPLES:
         return False
     if not _capacity_warned:

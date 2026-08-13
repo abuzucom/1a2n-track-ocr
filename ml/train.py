@@ -91,6 +91,13 @@ def run(epochs: int) -> None:
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
     model.summary()
 
+    # Shuffle before splitting so validation_split draws from a
+    # representative cross-section, not just the tail of the ordered
+    # labels file (which is typically all-synthetic).
+    shuffle_indices = np.random.permutation(len(x))
+    x = x[shuffle_indices]
+    y = y[shuffle_indices]
+
     model.fit(
         x, y,
         validation_split=VALIDATION_SPLIT,

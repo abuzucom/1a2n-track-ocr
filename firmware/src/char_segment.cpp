@@ -88,7 +88,7 @@ static std::vector<CharBox> findBoxes(const uint8_t *luminance, int width, int h
         if (active) {
             if (runStart == -1) {
                 runStart = x;
-            } else if (lastActiveX >= 0 && x - lastActiveX > MIN_GAP_PX) {
+            } else if (x - lastActiveX > MIN_GAP_PX) {
                 if (lastActiveX - runStart + 1 >= MIN_CHAR_WIDTH_PX) {
                     boxes.push_back({runStart, 0, lastActiveX + 1, height});
                 }
@@ -114,10 +114,10 @@ static std::vector<CharBox> findBoxes(const uint8_t *luminance, int width, int h
                 }
             }
         }
-        if (top < bottom) {
-            box.top = top;
-            box.bottom = bottom;
-        }
+        // Every box spans columns with ink, so at least one pixel
+        // is found and top < bottom holds unconditionally.
+        box.top = top;
+        box.bottom = bottom;
     }
 
     return boxes;
@@ -125,8 +125,10 @@ static std::vector<CharBox> findBoxes(const uint8_t *luminance, int width, int h
 
 static void extractPatch(const uint8_t *luminance, int width, int height, const CharBox &box,
                           uint8_t *out, int patchSize) {
-    int boxWidth = std::max(1, box.right - box.left);
-    int boxHeight = std::max(1, box.bottom - box.top);
+    // Box width >= MIN_CHAR_WIDTH_PX (2) and height >= 1 by
+    // construction in findBoxes; no floor clamping needed.
+    int boxWidth = box.right - box.left;
+    int boxHeight = box.bottom - box.top;
 
     for (int py = 0; py < patchSize; py++) {
         int srcY = box.top + (py * boxHeight) / patchSize;

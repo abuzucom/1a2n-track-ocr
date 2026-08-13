@@ -69,10 +69,10 @@ def record_tesseract(player_id: str, capture_id: str, track: str, confidence: fl
 
     key = (player_id, capture_id)
     with _lock:
-        if key not in _pending_tesseract and len(_pending_order) >= PENDING_CAPACITY:
-            oldest = _pending_order.popleft()
-            _pending_tesseract.pop(oldest, None)
         if key not in _pending_tesseract:
+            if len(_pending_order) >= PENDING_CAPACITY:
+                oldest = _pending_order.popleft()
+                _pending_tesseract.pop(oldest, None)
             _pending_order.append(key)
         _pending_tesseract[key] = track
 
@@ -91,9 +91,8 @@ def _record_agreement(player_id: str, agree: bool) -> None:
                     player_id, MAX_TRACKED_PLAYERS,
                 )
                 return
-            history = _agreement_history.setdefault(
-                player_id, deque(maxlen=AGREEMENT_WINDOW_SIZE)
-            )
+            history = deque(maxlen=AGREEMENT_WINDOW_SIZE)
+            _agreement_history[player_id] = history
         history.append(agree)
 
 

@@ -71,7 +71,7 @@ def evaluate_tflite(tflite_model: bytes, samples: list[tuple[np.ndarray, int]]) 
         prediction = interpreter.get_tensor(output_detail["index"])
         if int(np.argmax(prediction)) == label:
             correct += 1
-    return correct / len(samples) if samples else 0.0
+    return correct / len(samples)
 
 
 def run() -> None:

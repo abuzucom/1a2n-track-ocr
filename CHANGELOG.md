@@ -9,6 +9,27 @@ until 1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Shuffled training arrays before `validation_split` in `ml/train.py`.
+  Keras splits from the tail without shuffling, so the ordered labels
+  file produced a validation set of only synthetic samples.
+- Added output tensor `dims->size` precondition in
+  `firmware/src/ondevice_ocr.cpp` before indexing `data[size - 1]`,
+  matching the existing input tensor validation.
+- Hoisted duplicate `image_to_boxes` call in `ml/prepare_chars.py` and
+  replaced contradictory `.get()` vs direct `[]` access with consistent
+  direct access.
+- Removed impossible `not IMAGES_DIR.is_dir()` branch in
+  `server/dataset.py`; the sole caller creates the directory first.
+- Folded redundant `key not in _pending_tesseract` re-test and replaced
+  `setdefault` on a proven-absent key with direct assignment in
+  `server/arbiter.py`.
+- Removed tautological `if (top < bottom)` guard, redundant
+  `lastActiveX >= 0` check, and structurally unnecessary `std::max(1, ...)`
+  clamping in `firmware/src/char_segment.cpp`.
+- Removed unreachable empty-list guard in `ml/convert.py`; the caller
+  raises before reaching the function if samples is empty.
 ### Security
 
 - Capture endpoints now require a shared bearer token, configured as
