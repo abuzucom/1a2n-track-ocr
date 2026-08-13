@@ -49,7 +49,7 @@ docs/*.pdf                  vendor reference documents
 ## Architecture
 
 Stack: ESP32-S3 firmware (PlatformIO/Arduino, C++), FastAPI backend,
-TensorFlow/TFLite training pipeline.
+Caddy reverse proxy (local HTTPS), TensorFlow/TFLite training pipeline.
 
 ```
 firmware/src/  main.cpp capture loop, camera_pins.h, char_segment.cpp,
