@@ -81,6 +81,11 @@ bool ondeviceOcrReady() {
 static void classifyPatch(const uint8_t *patch, char *classified, float *confidence) {
     float scale = inputTensor->params.scale;
     int zeroPoint = inputTensor->params.zero_point;
+    
+    if (scale == 0.0f) {
+        *classified = '\0';
+        return;
+    }
     float invScale = 1.0f / (255.0f * scale);
     for (int i = 0; i < PATCH_SIZE * PATCH_SIZE; i++) {
         inputTensor->data.int8[i] = (int8_t)(patch[i] * invScale + zeroPoint);

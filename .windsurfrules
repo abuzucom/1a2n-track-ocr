@@ -49,7 +49,7 @@ docs/*.pdf                  vendor reference documents
 ## Architecture
 
 Stack: ESP32-S3 firmware (PlatformIO/Arduino, C++), FastAPI backend,
-TensorFlow/TFLite training pipeline.
+Caddy reverse proxy (local HTTPS), TensorFlow/TFLite training pipeline.
 
 ```
 firmware/src/  main.cpp capture loop, camera_pins.h, char_segment.cpp,
@@ -58,6 +58,7 @@ server/        app.py HTTP entry, ocr.py Tesseract, arbiter.py source
                arbitration, sinks.py OBS output, dataset.py auto-labeling
 ml/            charset.py, prepare_chars.py, synth.py, train.py,
                convert.py, export_charset.py, export_model_header.py
+Caddyfile      Local HTTPS reverse proxy and security headers configuration
 ```
 
 Entry points: firmware `setup()`/`loop()` in `main.cpp`; `server/app.py`.

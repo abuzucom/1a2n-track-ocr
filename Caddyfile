@@ -1,0 +1,29 @@
+:443 {
+	tls internal
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Content-Security-Policy "default-src 'self'"
+		Referrer-Policy "no-referrer"
+	}
+
+	log {
+		output stdout
+	}
+
+	handle_path /static/* {
+		root * ./server/static
+		file_server
+	}
+
+	handle_path /output/* {
+		root * ./server/output
+		file_server
+	}
+
+	handle {
+		reverse_proxy localhost:8000
+	}
+}

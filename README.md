@@ -91,6 +91,7 @@ when the on-device model has earned the right to publish.
 | `ml/` | Character classifier training pipeline (see `ml/README.md`) |
 | `docs/` | Board schematics, FCC filings, chip datasheets, player manuals |
 | `scripts/` | AGENTS.md policy check scripts, run by CI |
+| `Caddyfile` | Local HTTPS reverse proxy configuration |
 
 ## Setup
 
@@ -145,10 +146,26 @@ it binds to all interfaces so the rig can reach it.
 cd server && pip install -r requirements.lock && BACKEND_TOKEN=your-long-random-value uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
+#### Running behind Caddy (Recommended for HTTPS)
+
+To protect the `BACKEND_TOKEN` on a shared network and enable a secure `https://` browser source overlay, use Caddy as a reverse proxy over the local network. 
+
+1. Install [Caddy](https://caddyserver.com/).
+2. Generate a local self-signed CA certificate and install it to your machine's trust store:
+   ```bash
+   caddy trust
+   ```
+3. Run Caddy from the repository root:
+   ```bash
+   caddy run
+   ```
+
+With Caddy running, point your OBS Browser Source at `https://localhost/static/overlay.html`.
+
 Output lands in `server/output/`: `now_playing_<player_id>.txt`,
 `now_playing.txt` (single rig only), and `now_playing.json`. Point an
 OBS Text source at the `.txt` file, or an OBS Browser Source at
-`http://<backend>:8000/static/overlay.html`.
+`https://localhost/static/overlay.html` (or `http://<backend>:8000/static/overlay.html` if bypassing Caddy).
 
 ### Firmware
 
