@@ -21,8 +21,6 @@ MAX_PLAYERS = int(os.environ.get("MAX_PLAYERS", "16"))
 
 logger = logging.getLogger(__name__)
 
-_ARTIST_TITLE_RE = re.compile(r"^(?P<artist>.+?) - (?P<title>.+)$")
-
 _lock = threading.Lock()
 _state: dict[str, dict] = {}
 _dirs_created = False
@@ -30,10 +28,10 @@ _dirs_created = False
 
 def split_artist(track: str) -> Optional[str]:
     """Return the artist from a leading "Artist - Title" pattern, or None."""
-    match = _ARTIST_TITLE_RE.match(track)
-    if not match:
-        return None
-    return match.group("artist")
+    parts = track.split(" - ", 1)
+    if len(parts) == 2:
+        return parts[0]
+    return None
 
 
 def _write_text(player_id: str, track: str, state_length: int) -> None:
