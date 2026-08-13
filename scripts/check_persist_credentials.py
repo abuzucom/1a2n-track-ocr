@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Enforce persist-credentials: false on actions/checkout steps (Rule 11).
+"""Enforce persist-credentials: false on actions/checkout steps (Rule 10).
 
 A portable, path-generic checker: copy this file into any repo and point
 it at that repo's GitHub Actions workflow files. Text/regex-based, not a
 full YAML parser, to stay stdlib-only like its sibling checkers.
 
 A checkout step is clean if its block contains `persist-credentials:
-false`, or the exact Rule 11 exception comment naming why the job keeps
+false`, or the exact Rule 10 exception comment naming why the job keeps
 the credential. Blocking: exits 1 on any violation.
 """
 import re
@@ -15,7 +15,7 @@ from pathlib import Path
 
 CHECKOUT_USES = re.compile(r"uses:\s*actions/checkout@")
 PERSIST_FALSE = re.compile(r"persist-credentials:\s*false\b")
-EXCEPTION_COMMENT = re.compile(r"#\s*persist-credentials:\s*true:.*\(Rule 11 exception\)\.")
+EXCEPTION_COMMENT = re.compile(r"#\s*persist-credentials:\s*true:.*\(Rule 10 exception\)\.")
 
 
 def _indent(line: str) -> int:
@@ -74,7 +74,7 @@ def find_violations(text: str, path: str) -> list[str]:
             continue
         violations.append(
             f"{path}:{number + 1}: actions/checkout missing "
-            "persist-credentials: false (Rule 11)"
+            "persist-credentials: false (Rule 10)"
         )
     return violations
 
@@ -95,7 +95,7 @@ def main() -> int:
         for message in all_violations:
             print(message, file=sys.stderr)
         print(
-            "fix: add `with: persist-credentials: false`, or the Rule 11 "
+            "fix: add `with: persist-credentials: false`, or the Rule 10 "
             "exception comment",
             file=sys.stderr,
         )

@@ -4,7 +4,7 @@
 AGENTS.md workflow rule: update README (substantial changes) and
 CHANGELOG (all changes). This rule went unenforced through seven build
 phases while every other rule had a script, which is the gap AGENTS.md
-rule 13 exists to prevent.
+rule 11 exists to prevent.
 
 Warning only: it always exits 0. "Substantial" is not mechanically
 decidable, so a blocking version would either nag on typo fixes or need

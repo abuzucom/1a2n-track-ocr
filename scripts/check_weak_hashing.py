@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Flag MD5/SHA-1 calls without a same-line justification comment (Rule 7).
+"""Flag MD5/SHA-1 calls without a same-line justification comment (Rule 6).
 
 A portable, path-generic checker: copy this file into any repo and point
 it at that repo's own source globs and CI. Verifies a comment exists on
@@ -38,7 +38,7 @@ def find_violations(text: str, path: str) -> list[str]:
             if not _has_same_line_comment(line, match.end()):
                 violations.append(
                     f"{path}:{number}: MD5/SHA-1 call without a "
-                    "justification comment (Rule 7)"
+                    "justification comment (Rule 6)"
                 )
     return violations
 
