@@ -32,7 +32,7 @@ def test_tesseract_result_feeds_sinks_immediately(reset_arbiter_state):
 
 
 def test_ondevice_result_without_matching_capture_is_ignored(reset_arbiter_state):
-    result = arbiter.record_ondevice("deck1", "no-such-capture", "Artist - Title")
+    result = arbiter.record_ondevice("deck1", "no-such-capture", "Artist - Title", 0.9)
     assert result is None
     assert reset_arbiter_state == []
 
@@ -41,7 +41,7 @@ def test_ondevice_agreement_is_tracked_but_untrusted_result_skips_sinks(reset_ar
     for i in range(arbiter.AGREEMENT_WINDOW_SIZE - 1):
         capture_id = str(i)
         arbiter.record_tesseract("deck1", capture_id, "Artist - Title", 90.0)
-        agree = arbiter.record_ondevice("deck1", capture_id, "Artist - Title")
+        agree = arbiter.record_ondevice("deck1", capture_id, "Artist - Title", 0.9)
         assert agree is True
 
     assert arbiter.is_trusted("deck1") is False
@@ -53,13 +53,13 @@ def test_ondevice_result_feeds_sinks_once_trusted(reset_arbiter_state):
     for i in range(arbiter.AGREEMENT_WINDOW_SIZE):
         capture_id = str(i)
         arbiter.record_tesseract("deck1", capture_id, "Artist - Title", 90.0)
-        arbiter.record_ondevice("deck1", capture_id, "Artist - Title")
+        arbiter.record_ondevice("deck1", capture_id, "Artist - Title", 0.9)
 
     assert arbiter.is_trusted("deck1") is True
 
     reset_arbiter_state.clear()
     arbiter.record_tesseract("deck1", "later", "New Artist - New Title", 90.0)
-    agree = arbiter.record_ondevice("deck1", "later", "New Artist - New Title")
+    agree = arbiter.record_ondevice("deck1", "later", "New Artist - New Title", 0.9)
     assert agree is True
 
     ondevice_calls = [call for call in reset_arbiter_state if call[2] == "ondevice"]
@@ -71,7 +71,7 @@ def test_disagreement_is_recorded_and_lowers_trust(reset_arbiter_state):
         capture_id = str(i)
         arbiter.record_tesseract("deck1", capture_id, "Artist - Title", 90.0)
         track = "Wrong Guess" if i % 2 == 0 else "Artist - Title"
-        agree = arbiter.record_ondevice("deck1", capture_id, track)
+        agree = arbiter.record_ondevice("deck1", capture_id, track, 0.9)
         assert agree == (i % 2 == 1)
 
     assert arbiter.is_trusted("deck1") is False
@@ -105,7 +105,7 @@ def test_low_confidence_tesseract_track_holds_last_known_good(reset_arbiter_stat
 def test_empty_ondevice_track_is_ignored(reset_arbiter_state):
     arbiter.record_tesseract("deck1", "100", "Artist - Title", 90.0)
     reset_arbiter_state.clear()
-    result = arbiter.record_ondevice("deck1", "100", "  ")
+    result = arbiter.record_ondevice("deck1", "100", "  ", 0.9)
     assert result is None
     assert reset_arbiter_state == []
 
@@ -120,3 +120,17 @@ def test_low_confidence_ondevice_track_is_ignored_and_not_scored(reset_arbiter_s
     # Still pending: a low-confidence on-device read should not consume
     # the cached Tesseract result, since no real comparison happened.
     assert ("deck1", "100") in arbiter._pending_tesseract
+
+
+def test_missing_confidence_fails_closed(reset_arbiter_state):
+    """An absent confidence is untrusted, not exempt.
+
+    This previously read "confidence is not None and confidence <
+    THRESHOLD", so omitting the field skipped the gate entirely and an
+    unmeasured result was treated as trustworthy.
+    """
+    arbiter.record_tesseract("deck1", "100", "Artist - Title", 90.0)
+    reset_arbiter_state.clear()
+    assert arbiter.record_ondevice("deck1", "100", "Artist - Title", None) is None
+    assert reset_arbiter_state == []
+    assert "deck1" not in arbiter._agreement_history

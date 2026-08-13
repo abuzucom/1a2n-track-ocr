@@ -71,6 +71,13 @@ Testing/
 # PlatformIO
 firmware/.pio/
 
+# secrets, never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
 # firmware secrets, never commit real WiFi credentials or backend URLs
 firmware/src/config.h
 

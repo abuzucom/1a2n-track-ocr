@@ -10,6 +10,10 @@ import cv2
 import numpy as np
 import pytesseract
 
+# The ROI crop is one line of text from a VGA frame. Anything near this
+# is already far larger than the pipeline produces.
+MAX_IMAGE_DIMENSION = 4096
+
 _FALLBACK_TESSERACT_PATHS = [
     r"C:\Program Files\Tesseract-OCR\tesseract.exe",
 ]
@@ -42,6 +46,15 @@ def preprocess(image_bytes: bytes) -> np.ndarray:
     image = cv2.imdecode(array, cv2.IMREAD_COLOR)
     if image is None:
         raise ValueError("could not decode image bytes")
+    # Checked before the 3x resize below, which multiplies pixel count by
+    # 9. Without this a small, highly compressed image expands into a very
+    # large array: compressed size is no guide to decoded size.
+    height, width = image.shape[:2]
+    if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
+        raise ValueError(
+            f"image {width}x{height} exceeds the {MAX_IMAGE_DIMENSION}px limit"
+        )
+
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     upscaled = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     _, thresholded = cv2.threshold(upscaled, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)

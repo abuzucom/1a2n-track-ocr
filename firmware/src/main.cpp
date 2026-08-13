@@ -42,6 +42,13 @@ static bool cropRoi(const camera_fb_t *fb, uint8_t *out) {
         return false;
     }
     const size_t bytesPerPixel = 2; // RGB565
+    // The frame descriptor is trusted for the memcpy below, so confirm it
+    // actually describes its own buffer first. A short or truncated DMA
+    // transfer would otherwise read past the end of fb->buf.
+    if (fb->format != PIXFORMAT_RGB565 ||
+        fb->len < (size_t)fb->width * fb->height * bytesPerPixel) {
+        return false;
+    }
     const size_t rowBytes = ROI_WIDTH * bytesPerPixel;
     const size_t srcStride = fb->width * bytesPerPixel;
     for (int row = 0; row < ROI_HEIGHT; row++) {
@@ -119,7 +126,7 @@ static void uploadRoiChange() {
         return;
     }
 
-    if (!uploadFrame(jpegBuf, jpegLen, PLAYER_ID, captureId, BACKEND_URL)) {
+    if (!uploadFrame(jpegBuf, jpegLen, PLAYER_ID, captureId, BACKEND_URL, BACKEND_TOKEN)) {
         Serial.println("frame upload failed");
     }
     free(jpegBuf);
@@ -130,7 +137,8 @@ static void uploadRoiChange() {
         // text not present, e.g. the unit is on a screen with no track
         // field), not a misread; there is nothing useful to upload.
         if (result.track.length() > 0 &&
-            !uploadResult(result.track, result.confidence, PLAYER_ID, captureId, BACKEND_URL)) {
+            !uploadResult(result.track, result.confidence, PLAYER_ID, captureId, BACKEND_URL,
+                           BACKEND_TOKEN)) {
             Serial.println("on-device result upload failed");
         }
     }

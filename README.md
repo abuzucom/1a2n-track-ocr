@@ -136,8 +136,13 @@ engine or `traineddata` versions produce different labels from identical
 frames. Use Tesseract 5.x. Pin the exact version through the deployment
 environment if labels need to be comparable across machines.
 
+The capture endpoints require a shared secret. Set `BACKEND_TOKEN` to a
+long random value, matching `BACKEND_TOKEN` in the firmware's `config.h`.
+The server refuses to start without it rather than running open, since
+it binds to all interfaces so the rig can reach it.
+
 ```bash
-cd server && pip install -r requirements.lock && uvicorn app:app --host 0.0.0.0 --port 8000
+cd server && pip install -r requirements.lock && BACKEND_TOKEN=your-long-random-value uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 Output lands in `server/output/`: `now_playing_<player_id>.txt`,
@@ -151,10 +156,12 @@ OBS Text source at the `.txt` file, or an OBS Browser Source at
 cd firmware && cp src/config.h.example src/config.h
 ```
 
-Edit `src/config.h`: WiFi credentials, `BACKEND_URL`, `PLAYER_ID`, and
-the ROI. `config.h` is gitignored and must never be committed. The ROI
-values shipped in the example are placeholders; calibrate them against
-the physical camera mount.
+Edit `src/config.h`: WiFi credentials, `BACKEND_URL`, `BACKEND_TOKEN`,
+`PLAYER_ID`, and the ROI. `BACKEND_TOKEN` must match the backend's
+environment variable of the same name, or every upload is rejected with
+401. `config.h` is gitignored and must never be committed. The ROI values
+shipped in the example are placeholders; calibrate them against the
+physical camera mount.
 
 ```bash
 cd firmware && pio run && pio run -t upload

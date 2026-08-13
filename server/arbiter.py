@@ -30,6 +30,9 @@ AGREEMENT_WINDOW_SIZE = 20
 TRUST_THRESHOLD = 0.9
 PENDING_CAPACITY = 200
 
+# Ceiling on distinct player_id values whose agreement history is kept.
+MAX_TRACKED_PLAYERS = 16
+
 # Tesseract's image_to_data confidence is 0-100. Below this, a non-empty
 # result is treated as too unreliable to publish or to use as ground
 # truth for on-device agreement tracking.
@@ -77,8 +80,21 @@ def record_tesseract(player_id: str, capture_id: str, track: str, confidence: fl
 
 
 def _record_agreement(player_id: str, agree: bool) -> None:
-    history = _agreement_history.setdefault(player_id, deque(maxlen=AGREEMENT_WINDOW_SIZE))
-    history.append(agree)
+    # Each deque is bounded, but the dict holding them was not, and it is
+    # keyed by a request-supplied player_id. Cap the cardinality too.
+    with _lock:
+        history = _agreement_history.get(player_id)
+        if history is None:
+            if len(_agreement_history) >= MAX_TRACKED_PLAYERS:
+                logger.warning(
+                    "not tracking agreement for new player_id %r: at the %d limit",
+                    player_id, MAX_TRACKED_PLAYERS,
+                )
+                return
+            history = _agreement_history.setdefault(
+                player_id, deque(maxlen=AGREEMENT_WINDOW_SIZE)
+            )
+        history.append(agree)
 
 
 def is_trusted(player_id: str) -> bool:
@@ -104,7 +120,17 @@ def record_ondevice(
         logger.info("on-device: no track text found for %s/%s", player_id, capture_id)
         return None
 
-    if confidence is not None and confidence < ONDEVICE_CONFIDENCE_THRESHOLD:
+    # Fail closed. This previously read "confidence is not None and
+    # confidence < THRESHOLD", so omitting the field from the request
+    # skipped the gate entirely and an unmeasured result was treated as
+    # trustworthy. An absent confidence is now untrusted.
+    if confidence is None:
+        logger.info(
+            "on-device: rejecting result with no confidence for %s/%s", player_id, capture_id
+        )
+        return None
+
+    if confidence < ONDEVICE_CONFIDENCE_THRESHOLD:
         logger.info(
             "on-device: rejecting low-confidence read for %s/%s (%.2f < %.2f): %r",
             player_id, capture_id, confidence, ONDEVICE_CONFIDENCE_THRESHOLD, track,

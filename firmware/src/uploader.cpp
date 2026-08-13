@@ -13,17 +13,19 @@ static const char *BOUNDARY_VALUE = "1a2nTrackOcrBoundary";
 static const int MAX_ATTEMPTS = 3;
 static const unsigned long RETRY_BASE_DELAY_MS = 500;
 
-static int postFrameOnce(const uint8_t *body, size_t totalLen, const char *backendUrl) {
+static int postFrameOnce(const uint8_t *body, size_t totalLen, const char *backendUrl,
+                          const char *token) {
     HTTPClient http;
     http.begin(String(backendUrl) + "/frame");
     http.addHeader("Content-Type", String("multipart/form-data; boundary=") + BOUNDARY_VALUE);
+    http.addHeader("Authorization", String("Bearer ") + token);
     int statusCode = http.POST(const_cast<uint8_t *>(body), totalLen);
     http.end();
     return statusCode;
 }
 
 bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
-                  const String &captureId, const char *backendUrl) {
+                  const String &captureId, const char *backendUrl, const char *token) {
     String delimiter = String(DASH_DASH) + BOUNDARY_VALUE;
 
     String preamble = delimiter + "\r\n" +
@@ -49,7 +51,7 @@ bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
 
     bool ok = false;
     for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        int statusCode = postFrameOnce(body, totalLen, backendUrl);
+        int statusCode = postFrameOnce(body, totalLen, backendUrl, token);
         if (statusCode == 200) {
             ok = true;
             break;
@@ -89,24 +91,25 @@ static String jsonEscape(const String &input) {
     return out;
 }
 
-static int postResultOnce(const String &body, const char *backendUrl) {
+static int postResultOnce(const String &body, const char *backendUrl, const char *token) {
     HTTPClient http;
     http.begin(String(backendUrl) + "/result");
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("Authorization", String("Bearer ") + token);
     int statusCode = http.POST(body);
     http.end();
     return statusCode;
 }
 
 bool uploadResult(const String &track, float confidence, const char *playerId,
-                   const String &captureId, const char *backendUrl) {
+                   const String &captureId, const char *backendUrl, const char *token) {
     String body = String("{\"player_id\":\"") + jsonEscape(String(playerId)) +
                   "\",\"capture_id\":\"" + jsonEscape(captureId) +
                   "\",\"track\":\"" + jsonEscape(track) +
                   "\",\"confidence\":" + String(confidence, 4) + "}";
 
     for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        int statusCode = postResultOnce(body, backendUrl);
+        int statusCode = postResultOnce(body, backendUrl, token);
         if (statusCode == 200) {
             return true;
         }
