@@ -1,103 +1,91 @@
 #!/usr/bin/env python3
-"""Block non-ASCII characters outside string literals or data files.
+"""Enforce the dash and ASCII style rules on the given files.
 
-AGENTS.md style rule: 7-bit ASCII (0-127) for all code, comments, and
-prose. Unicode is allowed only inside string literals or data where the
-domain requires it. This script flags any non-ASCII byte in a tracked
-text file; it does not distinguish "inside a string literal" from
-"inside a comment", since that requires a per-language parser. Files
-whose whole purpose is localized data (see LITERAL_DATA_EXTENSIONS) are
-skipped entirely, since flagging every translated string would defeat
-the exception the policy itself grants.
+A portable, path-generic version of lint_style.py's checks (which are
+hardcoded to AGENTS.md in this repo): copy this single file into any repo
+and point it at that repo's own source globs and CI. Blocking, like
+lint_style.py: exits 1 on any violation, since it propagates an
+already-blocking rule ("No non-ASCII characters") rather than a new one.
 """
-
-from __future__ import annotations
-
-import subprocess
+import re
 import sys
+from pathlib import Path
 
-SELF_PATH_SUFFIX = "check_ascii.py"
+INLINE_CODE = re.compile(r"`[^`]*`")
+DASH_SUBSTITUTE = re.compile(r" -{1,3} ")
+EM_EN_DASH = re.compile(r"[–—]")
 
-BINARY_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".gz", ".tar",
-    ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".mp3", ".exe", ".dll",
-}
-
-# Files that are pure translated/localized data are exempt (domain requires
-# non-ASCII content). Everything else, including comments inside these
-# formats, is still expected to be ASCII per the policy's own carve-out.
-LITERAL_DATA_EXTENSIONS = {".po", ".mo"}
-
-# Third-party license text must be preserved verbatim, not edited to fit
-# this repo's style rules.
-LICENSE_FILENAMES = {
-    "license", "license.txt", "license.md",
-    "copying", "copying.txt",
-    "notice", "notice.txt",
-    "ofl.txt",
-}
-
-
-def run_git(args: list[str]) -> str:
-    result = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
-    if result.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
-    return result.stdout
+# Divergence from the canonical upstream copy of this script, kept
+# deliberately narrow. Both constructs below are spaced hyphens that are
+# not em-dash substitutes, so the canonical version reports them as
+# false positives in this repo:
+#
+#   "Artist - Title" is the literal track-name format this project reads
+#   off the player's screen and parses in server/sinks.py. It is a data
+#   format, and prose describing it has to spell it out.
+#
+#   "## [0.1.0] - 2026-08-13" is the Keep a Changelog version heading,
+#   a fixed external format CHANGELOG.md cannot deviate from.
+ALLOWED = (
+    re.compile(r"\bartist - title\b", re.IGNORECASE),
+    re.compile(r"^#{1,6}\s*\[[^\]]+\]\s+-\s+\d{4}-\d{2}-\d{2}\s*$"),
+)
 
 
-def tracked_files() -> list[str]:
-    output = run_git(["ls-files"])
-    return [line for line in output.splitlines() if line]
+def strip_code(line: str) -> str:
+    """Remove inline code spans so hyphens in flags/examples are ignored."""
+    return INLINE_CODE.sub("", line)
 
 
-def is_skipped(path: str) -> bool:
-    lower = path.lower()
-    if any(lower.endswith(ext) for ext in BINARY_EXTENSIONS):
-        return True
-    if any(lower.endswith(ext) for ext in LITERAL_DATA_EXTENSIONS):
-        return True
-    if lower.rsplit("/", 1)[-1] in LICENSE_FILENAMES:
-        return True
-    return False
+def strip_allowed(line: str) -> str:
+    """Remove constructs this repo permits, so they are not miscounted."""
+    for pattern in ALLOWED:
+        line = pattern.sub("", line)
+    return line
 
 
-def scan_file(path: str) -> list[str]:
+def find_violations(text: str, path: str) -> list[str]:
+    """Return one message per style violation in the prose of `text`."""
     violations = []
-    try:
-        with open(path, "rb") as handle:
-            raw = handle.read()
-    except OSError:
-        return violations
-
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError:
-        return violations
-
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        for col, char in enumerate(line, start=1):
-            if ord(char) > 127:
-                violations.append(
-                    f"{path}:{lineno}:{col}: non-ASCII character {char!r} (U+{ord(char):04X})"
-                )
-                break
+    in_fence = False
+    for number, raw in enumerate(text.splitlines(), start=1):
+        if raw.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        prose = strip_allowed(strip_code(raw))
+        if EM_EN_DASH.search(prose):
+            violations.append(f"{path}:{number}: em/en dash character")
+        if DASH_SUBSTITUTE.search(prose):
+            violations.append(
+                f"{path}:{number}: spaced hyphen used as an em-dash substitute"
+            )
+        if any(ord(char) > 127 for char in prose):
+            violations.append(f"{path}:{number}: non-ASCII character in prose")
     return violations
 
 
 def main() -> int:
-    violations = []
-    for path in tracked_files():
-        if path.endswith(SELF_PATH_SUFFIX) or is_skipped(path):
-            continue
-        violations.extend(scan_file(path))
-
-    if violations:
-        print("ASCII check failed:", file=sys.stderr)
-        for violation in violations:
-            print(f"  - {violation}", file=sys.stderr)
+    """Lint each given file. Return 0 when all are clean, 1 on any violation."""
+    paths = sys.argv[1:]
+    if not paths:
+        print("usage: check_ascii.py FILE [FILE ...]", file=sys.stderr)
         return 1
 
-    print("ASCII check passed.")
+    all_violations = []
+    for path in paths:
+        text = Path(path).read_text(encoding="utf-8")
+        all_violations.extend(find_violations(text, path))
+
+    if all_violations:
+        for message in all_violations:
+            print(message, file=sys.stderr)
+        print(
+            "fix: rewrite as separate sentences or use a comma/colon/semicolon",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

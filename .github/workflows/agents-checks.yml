@@ -1,19 +1,27 @@
 name: agents-checks
 
+# Repo-specific checks only. Everything the abuzucom/agents template
+# ships is wired in agents-md-compliance.yml and sync-check.yml; this
+# file holds the two checks that template does not provide.
+#
+# Upstream lints prose only in AGENTS.md. This repo is documentation
+# heavy and public, so check_ascii.py runs across all tracked Markdown
+# as well. See its ALLOWED list for the two constructs this repo
+# permits that the canonical script would flag.
+
 on:
   pull_request:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  policy-checks:
-    name: AGENTS.md policy checks
+  repo-checks:
+    name: Repo-specific checks
     runs-on: ubuntu-latest
     steps:
-      # Actions are pinned by commit SHA, not by tag. A tag, including a
-      # major-version tag like v4, can be repointed by anyone with push
-      # access to the action's repo, so a tag pin is not a pin. Comments
-      # record the human-readable version each SHA corresponds to.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
@@ -23,36 +31,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Branch name
-        if: github.event_name == 'pull_request'
-        run: python scripts/check_branch_name.py "${{ github.head_ref }}"
-
-      - name: Banned agents
-        run: python scripts/check_banned_agents.py --base "origin/${{ github.event.pull_request.base.ref || 'main' }}" --head HEAD
-
-      - name: ASCII only
-        run: python scripts/check_ascii.py
-
-      - name: No em/en dashes
-        run: python scripts/lint_style.py
-
-      - name: Weak hashing
-        run: python scripts/check_weak_hashing.py
-
-      - name: Secrets heuristic
-        run: python scripts/check_secrets_heuristic.py
-
-      - name: persist-credentials on checkout steps
-        run: python scripts/check_persist_credentials.py
-
-      - name: Non-root containers
-        run: python scripts/check_dockerfile_root.py
-
-      - name: US spelling (warning only)
-        run: python scripts/check_us_spelling.py
-
-      - name: English only (warning only)
-        run: python scripts/check_english_only.py
+      - name: Prose style across all Markdown
+        run: |
+          shopt -s nullglob globstar
+          files=(**/*.md)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_ascii.py "${files[@]}"
+          fi
 
       - name: Docs updated (warning only)
         run: python scripts/check_docs_updated.py --base "origin/${{ github.event.pull_request.base.ref || 'main' }}" --head HEAD

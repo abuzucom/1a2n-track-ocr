@@ -1,118 +1,62 @@
 #!/usr/bin/env python3
-"""Heuristic secret and credential scanner for tracked files.
+"""Heuristically flag likely-committed secrets (Rule 8).
 
-AGENTS.md rule 8: never commit keys, tokens, passwords, private keys, or
-.env files. This is a pattern-matching heuristic, not entropy analysis;
-it will miss novel secret formats and may flag placeholders. Treat a
-clean run as necessary, not sufficient, and review diffs by eye too.
+A portable, path-generic checker: copy this file into any repo and point
+it at that repo's own source globs and CI. Matches well-anchored,
+structured secret-token prefixes (AWS, GitHub, Slack, Google, PEM keys)
+and blocks any file literally named .env or .env.local (.env.example is
+allowed). This is a heuristic, not entropy-based scanning: it misses
+secrets with no recognizable prefix. Propose gitleaks or detect-secrets
+(Rule 9) for that. Blocking: exits 1 on any match.
 """
-
-from __future__ import annotations
-
 import re
-import subprocess
 import sys
+from pathlib import Path
 
-SELF_PATH_SUFFIX = "check_secrets_heuristic.py"
-
-BINARY_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".gz", ".tar",
-    ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".mp3", ".exe", ".dll",
-}
-
-PLACEHOLDER_MARKERS = (
-    "changeme", "change_me", "xxxx", "your-", "your_", "example",
-    "placeholder", "<", "redacted", "dummy", "fake", "sample", "insert",
-    "todo", "***",
-)
-
-SECRET_PATTERNS = [
-    ("AWS Access Key ID", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
-    ("GitHub token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b")),
-    ("Slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
-    ("Google API key", re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b")),
-    ("Private key block", re.compile(r"-----BEGIN (RSA|EC|DSA|OPENSSH|PGP)?\s*PRIVATE KEY-----")),
-    (
-        "Generic credential assignment",
-        re.compile(
-            r"(?i)\b(api[_-]?key|secret|token|password|passwd)\b\s*[:=]\s*"
-            r"['\"]([^'\"]{8,})['\"]"
-        ),
-    ),
+TOKEN_PATTERNS = [
+    re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
+    re.compile(r"\bgh[ops]_[0-9A-Za-z]{36,}\b"),
+    re.compile(r"\bgithub_pat_[0-9A-Za-z_]{22,}\b"),
+    re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b"),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
+    re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |)PRIVATE KEY-----"),
 ]
+BLOCKED_ENV_NAMES = (".env", ".env.local")
 
 
-def run_git(args: list[str]) -> str:
-    result = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
-    if result.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
-    return result.stdout
-
-
-def tracked_files() -> list[str]:
-    output = run_git(["ls-files"])
-    return [line for line in output.splitlines() if line]
-
-
-def is_binary_path(path: str) -> bool:
-    lower = path.lower()
-    return any(lower.endswith(ext) for ext in BINARY_EXTENSIONS)
-
-
-def is_tracked_env_file(path: str) -> bool:
-    name = path.rsplit("/", 1)[-1]
-    if name == ".env.example":
-        return False
-    return name == ".env" or name.startswith(".env.")
-
-
-def looks_like_placeholder(value: str) -> bool:
-    lowered = value.lower()
-    return any(marker in lowered for marker in PLACEHOLDER_MARKERS)
-
-
-def scan_file(path: str) -> list[str]:
+def find_violations(text: str, path: str) -> list[str]:
+    """Return one message per likely secret token or blocked filename."""
     violations = []
-    try:
-        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
-            lines = handle.readlines()
-    except OSError:
-        return violations
-
-    for lineno, line in enumerate(lines, start=1):
-        for label, pattern in SECRET_PATTERNS:
-            match = pattern.search(line)
-            if not match:
-                continue
-            captured = match.group(2) if match.lastindex and match.lastindex >= 2 else match.group(0)
-            if looks_like_placeholder(captured):
-                continue
-            violations.append(f"{path}:{lineno}: possible {label}: {line.strip()[:120]}")
+    if Path(path).name in BLOCKED_ENV_NAMES:
+        violations.append(f"{path}: file must not be committed (Rule 8)")
+    for number, line in enumerate(text.splitlines(), start=1):
+        for pattern in TOKEN_PATTERNS:
+            if pattern.search(line):
+                violations.append(f"{path}:{number}: likely secret token committed (Rule 8)")
+                break
     return violations
 
 
 def main() -> int:
-    violations = []
-    for path in tracked_files():
-        if path.endswith(SELF_PATH_SUFFIX) or is_binary_path(path):
-            continue
-        if is_tracked_env_file(path):
-            violations.append(f"{path}: tracked .env file (only .env.example is allowed)")
-            continue
-        violations.extend(scan_file(path))
+    """Check each given file. Return 0 when all are clean, 1 otherwise."""
+    paths = sys.argv[1:]
+    if not paths:
+        print("usage: check_secrets_heuristic.py FILE [FILE ...]", file=sys.stderr)
+        return 1
 
-    if violations:
-        print("Secrets heuristic check failed:", file=sys.stderr)
-        for violation in violations:
-            print(f"  - {violation}", file=sys.stderr)
+    all_violations = []
+    for path in paths:
+        text = Path(path).read_text(encoding="utf-8", errors="ignore")
+        all_violations.extend(find_violations(text, path))
+
+    if all_violations:
+        for message in all_violations:
+            print(message, file=sys.stderr)
         print(
-            "\nIf a match is a false positive placeholder, rename it to include "
-            "one of: changeme, example, placeholder, your-, <...>.",
+            "fix: remove and rotate the secret; use env vars or a secret manager",
             file=sys.stderr,
         )
         return 1
-
-    print("Secrets heuristic check passed.")
     return 0
 
 
