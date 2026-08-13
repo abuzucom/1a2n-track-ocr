@@ -9,6 +9,33 @@ until 1.0.0.
 
 ## [Unreleased]
 
+### Security
+
+- Caddy now caps request bodies at 4MB and sets read, write, and idle
+  timeouts. FastAPI parses a body while resolving endpoint parameters,
+  which happens before the auth dependency can reject the request, so
+  the application cannot enforce this without buffering the upload
+  first. The bound belongs at ingress.
+- uvicorn binds to loopback instead of all interfaces. Binding to
+  `0.0.0.0` exposed a plaintext port beside the HTTPS one, letting any
+  LAN client bypass Caddy's TLS, headers, logging, and limits.
+- Image dimensions are read from the header before decoding rather than
+  after. The check previously ran after `cv2.imdecode`, so a
+  decompression bomb had already been allocated by the time it was
+  rejected. The pixel budget is now 2 Mpx, chosen for a one-line ROI
+  crop; the old 4096-per-side limit permitted a 144 MiB array after the
+  3x upscale.
+- Tesseract calls take a 20 second deadline and run under a semaphore
+  bounding concurrent OCR subprocesses. Neither was bounded before.
+- `confidence` must be finite and within 0.0 through 1.0. Pydantic
+  accepts NaN and Infinity for a bare float, and `NaN < threshold` is
+  False, so a NaN confidence passed the low-confidence gate and counted
+  toward on-device trust.
+- The overlay's CSS and JavaScript moved into external files. Caddy
+  sends `default-src 'self'`, which blocked the previous inline
+  `<style>` and `<script>`, so the overlay could render blank when
+  served through the proxy.
+
 ### Added
 
 - `app-tests.yml` workflow running the checks CI never ran: backend

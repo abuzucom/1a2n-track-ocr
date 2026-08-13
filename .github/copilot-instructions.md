@@ -27,7 +27,8 @@ test all:     cd server && python -m pytest tests/
 single test:  cd server && python -m pytest tests/test_arbiter.py::test_name
 lint:         make lint
 build:        cd firmware && pio run     (PowerShell on Windows, not Git Bash)
-dev server:   cd server && uvicorn app:app --host 0.0.0.0 --port 8000
+dev server:   cd server && uvicorn app:app --host 127.0.0.1 --port 8000
+              (loopback only; Caddy is the sole entry point)
 sync rules:   make sync
 ```
 

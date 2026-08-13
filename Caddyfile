@@ -1,5 +1,29 @@
+{
+	# Connection-level deadlines. Without these a slow or stalled peer
+	# holds a connection and its worker open indefinitely, which needs
+	# no authentication to trigger.
+	servers {
+		timeouts {
+			read_body   10s
+			read_header 5s
+			write       30s
+			idle        2m
+		}
+	}
+}
+
 :443 {
 	tls internal
+
+	# Cap the body at ingress, before anything reaches the application.
+	# FastAPI parses a multipart or JSON body while resolving endpoint
+	# parameters, which happens before the auth dependency can reject
+	# the request, so the app cannot enforce this itself without
+	# buffering the upload first. Matches MAX_UPLOAD_BYTES in
+	# server/app.py, which stays as defense in depth.
+	request_body {
+		max_size 4MB
+	}
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"

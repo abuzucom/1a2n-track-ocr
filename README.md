@@ -157,11 +157,15 @@ environment if labels need to be comparable across machines.
 
 The capture endpoints require a shared secret. Set `BACKEND_TOKEN` to a
 long random value, matching `BACKEND_TOKEN` in the firmware's `config.h`.
-The server refuses to start without it rather than running open, since
-it binds to all interfaces so the rig can reach it.
+The server refuses to start without it rather than running open.
+
+Bind uvicorn to loopback. Caddy is the only thing that should reach it,
+and Caddy runs on the same host. Binding to `0.0.0.0` puts a plaintext
+port on the network beside the HTTPS one, letting any LAN client bypass
+Caddy's TLS, security headers, logging, and request limits entirely.
 
 ```bash
-cd server && pip install -r requirements.lock && BACKEND_TOKEN=your-long-random-value uvicorn app:app --host 0.0.0.0 --port 8000
+cd server && pip install -r requirements.lock && BACKEND_TOKEN=your-long-random-value uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
 #### Running behind Caddy (required)
@@ -195,10 +199,9 @@ With Caddy running, point your OBS Browser Source at
 Output lands in `server/output/`: `now_playing_<player_id>.txt`,
 `now_playing.txt` (single rig only), and `now_playing.json`. Point an
 OBS Text source at the `.txt` file, or an OBS Browser Source at
-`https://localhost/static/overlay.html` (or, since OBS is a local
-consumer rather than the rig, `http://<backend>:8000/static/overlay.html`
-directly against uvicorn if you would rather not run Caddy just for
-local viewing; the firmware itself has no such option).
+`https://localhost/static/overlay.html`. Caddy is the only HTTP entry
+point; with uvicorn on loopback there is no plaintext port to reach from
+another machine.
 
 ### Firmware
 
