@@ -51,6 +51,12 @@ cmake_install.cmake
 Makefile
 install_manifest.txt
 compile_commands.json
+# This repo has no CMake build, so the Makefile line above only ever
+# meant to catch a generated one in a build directory. It also matched
+# the hand-authored root Makefile from the agents template, which is
+# why that file was silently dropped from every `git add -A` since it
+# was added. Un-ignore it explicitly.
+!/Makefile
 
 # Temporary files
 *.tmp
