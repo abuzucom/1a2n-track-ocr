@@ -74,6 +74,12 @@ static void connectWiFi() {
 }
 
 static void uploadRoiChange() {
+    // One ID per capture, shared between the /frame and /result POSTs
+    // below, so the backend's arbiter can pair the Tesseract and
+    // on-device results for the same ROI without needing to guess from
+    // arrival order.
+    String captureId = String(millis());
+
     uint8_t *jpegBuf = nullptr;
     size_t jpegLen = 0;
     bool ok = fmt2jpg(
@@ -85,14 +91,14 @@ static void uploadRoiChange() {
         return;
     }
 
-    if (!uploadFrame(jpegBuf, jpegLen, PLAYER_ID, BACKEND_URL)) {
+    if (!uploadFrame(jpegBuf, jpegLen, PLAYER_ID, captureId, BACKEND_URL)) {
         Serial.println("frame upload failed");
     }
     free(jpegBuf);
 
     if (ondeviceOcrReady()) {
         String track = runOndeviceOcr(roiBuffer, ROI_WIDTH, ROI_HEIGHT);
-        if (track.length() > 0 && !uploadResult(track, PLAYER_ID, BACKEND_URL)) {
+        if (track.length() > 0 && !uploadResult(track, PLAYER_ID, captureId, BACKEND_URL)) {
             Serial.println("on-device result upload failed");
         }
     }

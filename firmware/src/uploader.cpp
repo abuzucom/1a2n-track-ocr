@@ -11,12 +11,15 @@ static const char *DASH_DASH = "\x2d\x2d";
 static const char *BOUNDARY_VALUE = "1a2nTrackOcrBoundary";
 
 bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
-                  const char *backendUrl) {
+                  const String &captureId, const char *backendUrl) {
     String delimiter = String(DASH_DASH) + BOUNDARY_VALUE;
 
     String preamble = delimiter + "\r\n" +
                        "Content-Disposition: form-data; name=\"player_id\"\r\n\r\n" +
                        playerId + "\r\n" +
+                       delimiter + "\r\n" +
+                       "Content-Disposition: form-data; name=\"capture_id\"\r\n\r\n" +
+                       captureId + "\r\n" +
                        delimiter + "\r\n" +
                        "Content-Disposition: form-data; name=\"file\"; filename=\"roi.jpg\"\r\n" +
                        "Content-Type: image/jpeg\r\n\r\n";
@@ -71,8 +74,10 @@ static String jsonEscape(const String &input) {
     return out;
 }
 
-bool uploadResult(const String &track, const char *playerId, const char *backendUrl) {
+bool uploadResult(const String &track, const char *playerId, const String &captureId,
+                   const char *backendUrl) {
     String body = String("{\"player_id\":\"") + jsonEscape(String(playerId)) +
+                  "\",\"capture_id\":\"" + jsonEscape(captureId) +
                   "\",\"track\":\"" + jsonEscape(track) + "\"}";
 
     HTTPClient http;
