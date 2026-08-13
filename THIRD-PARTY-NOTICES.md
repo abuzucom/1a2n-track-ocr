@@ -1,15 +1,13 @@
 # Third-party notices
 
-The MIT license in `LICENSE` covers the source code in this repository.
-It does not cover the third-party material listed here, which remains
-the property of its respective owners and is redistributed or depended
-on under the terms noted below.
+The MIT license in `LICENSE` covers this repository's source code only.
+The third-party material below remains the property of its owners, under
+the terms noted.
 
 ## Reference documents in docs/
 
-`docs/` retains manufacturer and regulatory documents used to build this
-project. They are reference material, not part of the software, and no
-rights in them are granted by this repository's license.
+`docs/` holds manufacturer and regulatory documents used to build this
+project. This repository's license grants no rights in them.
 
 ### Player manuals
 

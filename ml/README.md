@@ -1,10 +1,10 @@
 # ml
 
-On-device OCR model training. See the plan's Phase 4 for scope.
+Trains the on-device OCR character classifier.
 
 ## dataset/
 
-Auto-labeled by `server/dataset.py` (Phase 3): every frame the backend
+Auto-labeled by `server/dataset.py`: every frame the backend
 OCRs gets recorded here, tagged by `player_id`. Tesseract's own errors
 are present in these labels; spot-check a sample before training, do not
 trust them blindly.
@@ -15,7 +15,7 @@ trust them blindly.
   filename: `{"image": ..., "player_id": ..., "track": ..., "confidence":
   ..., "timestamp_ms": ...}`.
 
-Also worth capturing manually: tracks with and without a distinguishable
-artist, parenthetical remix tags, "Feat" credits (see the real examples
-in `docs/xdj_screen_reference.md`), since normal operation may
-underrepresent them.
+Capture these cases manually, since normal operation underrepresents
+them: tracks with and without a distinguishable artist, parenthetical
+remix tags, and "Feat" credits. See `docs/xdj_screen_reference.md` for
+examples.

@@ -80,9 +80,8 @@ until 1.0.0.
 
 ## [0.1.0] - 2026-08-13
 
-First implementation of the full capture to overlay pipeline. Backfilled
-from the seven build phases. Nothing in this release has been verified
-against real hardware.
+First implementation of the capture to overlay pipeline. Nothing in this
+release has been verified against real hardware.
 
 ### Added
 
@@ -140,7 +139,7 @@ against real hardware.
   not measured against a physical camera mount.
 - Character segmentation differs between training (Tesseract boxes) and
   inference (projection profile), an unmeasured accuracy risk.
-- Phase 4 was validated on synthetic data only.
+- The character classifier was exercised on synthetic data only.
 
 [Unreleased]: https://github.com/abuzucom/1a2n-track-ocr/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/abuzucom/1a2n-track-ocr/releases/tag/v0.1.0
