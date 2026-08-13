@@ -51,15 +51,23 @@ two rigs, each with its own `PLAYER_ID`.
                     +================+================+
                     |                                 |
           on-device OCR                       JPEG crop uploaded
-          (TFLite-Micro char                  to POST /frame
-           classifier, when a
-           model is embedded)
+          (TFLite-Micro char                  as HTTPS POST /frame
+           classifier, when a                 (Bearer token,
+           model is embedded)                  pinned CA cert)
                     |                                 |
-        POST /result                          [Python backend]
-        {track, confidence,                    Tesseract OCR runs on
-         capture_id}                           every frame. Records the
+        POST /result                          [Caddy, :443]
+        (same HTTPS, token,                    TLS termination,
+         pinned cert)                          OWASP headers,
+                    |                          reverse_proxy for
+                    |                          /frame and /result
+                    |                                 |
+                    |                          [uvicorn, :8000]
+                    |                          Tesseract OCR runs on
+                    |                          every frame. Records the
                     |                          crop plus its label into
                     |                          ml/dataset/ for training.
+                    |                          Rejects unauthenticated
+                    |                          or malformed requests.
                     |                                 |
                     +================+================+
                                      |
@@ -73,14 +81,24 @@ two rigs, each with its own `PLAYER_ID`.
                     +================+================+
                     |                                 |
         now_playing.txt                    now_playing.json plus
-        (OBS Text source,                  static/overlay.html
-         read from file)                   (OBS Browser Source)
+        (OBS Text source,                  static/overlay.html,
+         read from file)                   served by Caddy's own
+                                            file_server directly
+                                            (not proxied to uvicorn)
+                                            (OBS Browser Source)
 ```
 
 Both OCR paths run on every changed frame. They are not primary and
 fallback. Tesseract's output auto-labels the training data for the
 on-device model, and the arbiter uses their agreement rate to decide
 when the on-device model has earned the right to publish.
+
+Caddy and uvicorn are two separate processes that both must be running;
+see Setup below. Firmware never talks to uvicorn directly. `/static` and
+`/output` are unauthenticated by design (OBS cannot send a bearer
+token), and Caddy serves them straight off disk rather than proxying
+through the FastAPI app that enforces the token on `/frame` and
+`/result`.
 
 ## Repo layout
 
@@ -146,26 +164,41 @@ it binds to all interfaces so the rig can reach it.
 cd server && pip install -r requirements.lock && BACKEND_TOKEN=your-long-random-value uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-#### Running behind Caddy (Recommended for HTTPS)
+#### Running behind Caddy (required)
 
-To protect the `BACKEND_TOKEN` on a shared network and enable a secure `https://` browser source overlay, use Caddy as a reverse proxy over the local network. 
+The firmware always connects over HTTPS through Caddy; it never talks to
+uvicorn directly. Both processes run together.
 
 1. Install [Caddy](https://caddyserver.com/).
-2. Generate a local self-signed CA certificate and install it to your machine's trust store:
-   ```bash
-   caddy trust
-   ```
-3. Run Caddy from the repository root:
+2. Run Caddy from the repository root, which generates a local CA the
+   first time it runs:
    ```bash
    caddy run
    ```
+3. Install that CA into your own machine's trust store, so your browser
+   trusts the overlay page:
+   ```bash
+   caddy trust
+   ```
+4. Copy the CA's root certificate into the firmware's `config.h` as
+   `BACKEND_CA_CERT`. `firmware/src/config.h.example` documents where
+   Caddy stores it per platform (for example,
+   `~/.local/share/caddy/pki/authorities/local/root.crt` on Linux). This
+   is what lets the firmware verify it is actually talking to your
+   backend rather than trusting any certificate on the network; without
+   it, the token in the previous step could be handed to an impostor on
+   the same WiFi. See `SECURITY.md`.
 
-With Caddy running, point your OBS Browser Source at `https://localhost/static/overlay.html`.
+With Caddy running, point your OBS Browser Source at
+`https://localhost/static/overlay.html`.
 
 Output lands in `server/output/`: `now_playing_<player_id>.txt`,
 `now_playing.txt` (single rig only), and `now_playing.json`. Point an
 OBS Text source at the `.txt` file, or an OBS Browser Source at
-`https://localhost/static/overlay.html` (or `http://<backend>:8000/static/overlay.html` if bypassing Caddy).
+`https://localhost/static/overlay.html` (or, since OBS is a local
+consumer rather than the rig, `http://<backend>:8000/static/overlay.html`
+directly against uvicorn if you would rather not run Caddy just for
+local viewing; the firmware itself has no such option).
 
 ### Firmware
 

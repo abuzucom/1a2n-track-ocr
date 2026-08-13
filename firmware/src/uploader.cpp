@@ -15,11 +15,13 @@ static const int MAX_ATTEMPTS = 3;
 static const unsigned long RETRY_BASE_DELAY_MS = 500;
 
 static int postFrameOnce(const uint8_t *body, size_t totalLen, const char *backendUrl,
-                          const char *token) {
+                          const char *token, const char *caCert) {
     WiFiClientSecure client;
-    // Trust local Caddy self-signed certificates without verification
-    client.setInsecure();
-    
+    // Verify the backend's certificate against the pinned local CA rather
+    // than skipping verification, so a host impersonating the backend on
+    // the same network is rejected instead of trusted.
+    client.setCACert(caCert);
+
     HTTPClient http;
     http.begin(client, String(backendUrl) + "/frame");
     http.addHeader("Content-Type", String("multipart/form-data; boundary=") + BOUNDARY_VALUE);
@@ -30,7 +32,8 @@ static int postFrameOnce(const uint8_t *body, size_t totalLen, const char *backe
 }
 
 bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
-                  const String &captureId, const char *backendUrl, const char *token) {
+                  const String &captureId, const char *backendUrl, const char *token,
+                  const char *caCert) {
     String delimiter = String(DASH_DASH) + BOUNDARY_VALUE;
 
     String preamble = delimiter + "\r\n" +
@@ -56,7 +59,7 @@ bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
 
     bool ok = false;
     for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        int statusCode = postFrameOnce(body, totalLen, backendUrl, token);
+        int statusCode = postFrameOnce(body, totalLen, backendUrl, token, caCert);
         if (statusCode == 200) {
             ok = true;
             break;
@@ -96,11 +99,11 @@ static String jsonEscape(const String &input) {
     return out;
 }
 
-static int postResultOnce(const String &body, const char *backendUrl, const char *token) {
+static int postResultOnce(const String &body, const char *backendUrl, const char *token,
+                           const char *caCert) {
     WiFiClientSecure client;
-    // Trust local Caddy self-signed certificates without verification
-    client.setInsecure();
-    
+    client.setCACert(caCert);
+
     HTTPClient http;
     http.begin(client, String(backendUrl) + "/result");
     http.addHeader("Content-Type", "application/json");
@@ -111,14 +114,15 @@ static int postResultOnce(const String &body, const char *backendUrl, const char
 }
 
 bool uploadResult(const String &track, float confidence, const char *playerId,
-                   const String &captureId, const char *backendUrl, const char *token) {
+                   const String &captureId, const char *backendUrl, const char *token,
+                   const char *caCert) {
     String body = String("{\"player_id\":\"") + jsonEscape(String(playerId)) +
                   "\",\"capture_id\":\"" + jsonEscape(captureId) +
                   "\",\"track\":\"" + jsonEscape(track) +
                   "\",\"confidence\":" + String(confidence, 4) + "}";
 
     for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        int statusCode = postResultOnce(body, backendUrl, token);
+        int statusCode = postResultOnce(body, backendUrl, token, caCert);
         if (statusCode == 200) {
             return true;
         }

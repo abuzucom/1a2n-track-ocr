@@ -126,7 +126,8 @@ static void uploadRoiChange() {
         return;
     }
 
-    if (!uploadFrame(jpegBuf, jpegLen, PLAYER_ID, captureId, BACKEND_URL, BACKEND_TOKEN)) {
+    if (!uploadFrame(jpegBuf, jpegLen, PLAYER_ID, captureId, BACKEND_URL, BACKEND_TOKEN,
+                      BACKEND_CA_CERT)) {
         Serial.println("frame upload failed");
     }
     free(jpegBuf);
@@ -138,7 +139,7 @@ static void uploadRoiChange() {
         // field), not a misread; there is nothing useful to upload.
         if (result.track.length() > 0 &&
             !uploadResult(result.track, result.confidence, PLAYER_ID, captureId, BACKEND_URL,
-                           BACKEND_TOKEN)) {
+                           BACKEND_TOKEN, BACKEND_CA_CERT)) {
             Serial.println("on-device result upload failed");
         }
     }
