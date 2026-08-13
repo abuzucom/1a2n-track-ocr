@@ -4,10 +4,16 @@ from __future__ import annotations
 
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 import dataset
 import ocr
 import sinks
+
+
+class OndeviceResult(BaseModel):
+    player_id: str
+    track: str
 
 sinks.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -25,3 +31,15 @@ async def receive_frame(player_id: str = Form(...), file: UploadFile = File(...)
         player_id, result.track, source="tesseract", confidence=result.confidence
     )
     return {"track": result.track, "confidence": result.confidence, "changed": changed}
+
+
+@app.post("/result")
+async def receive_result(payload: OndeviceResult):
+    # Logged only, not yet fed into sinks: deciding which of the
+    # on-device and Tesseract results to trust is arbiter.py's job, not
+    # built yet. Calling sinks.update() from both this and /frame right
+    # now would make each one's "did it change" comparison fight the
+    # other's, since both would share the same per-player_id last-known
+    # state.
+    print(f"on-device result for {payload.player_id}: {payload.track!r}")
+    return {"received": True}

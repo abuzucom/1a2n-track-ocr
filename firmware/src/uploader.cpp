@@ -45,3 +45,45 @@ bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
     }
     return true;
 }
+
+static String jsonEscape(const String &input) {
+    String out;
+    out.reserve(input.length() + 8);
+    for (size_t i = 0; i < input.length(); i++) {
+        char c = input[i];
+        if (c == '"' || c == '\\') {
+            out += '\\';
+            out += c;
+        } else if (c == '\n') {
+            out += "\\n";
+        } else if (c == '\r') {
+            out += "\\r";
+        } else if (c == '\t') {
+            out += "\\t";
+        } else if ((unsigned char)c < 0x20) {
+            char buf[8];
+            snprintf(buf, sizeof(buf), "\\u%04x", c);
+            out += buf;
+        } else {
+            out += c;
+        }
+    }
+    return out;
+}
+
+bool uploadResult(const String &track, const char *playerId, const char *backendUrl) {
+    String body = String("{\"player_id\":\"") + jsonEscape(String(playerId)) +
+                  "\",\"track\":\"" + jsonEscape(track) + "\"}";
+
+    HTTPClient http;
+    http.begin(String(backendUrl) + "/result");
+    http.addHeader("Content-Type", "application/json");
+    int statusCode = http.POST(body);
+    http.end();
+
+    if (statusCode != 200) {
+        Serial.printf("uploadResult: backend returned status %d\n", statusCode);
+        return false;
+    }
+    return true;
+}

@@ -1,4 +1,5 @@
-// Uploads a JPEG ROI crop to the backend's /frame endpoint.
+// Uploads to the backend: a JPEG ROI crop to /frame, or an on-device
+// OCR result to /result.
 
 #pragma once
 
@@ -6,3 +7,5 @@
 
 bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
                   const char *backendUrl);
+
+bool uploadResult(const String &track, const char *playerId, const char *backendUrl);

@@ -1,6 +1,9 @@
 // Captures the configured ROI on a timer, hashes it to detect a change,
-// and on change, uploads it as JPEG to the backend's /frame endpoint.
-// On-device OCR is not implemented yet (Phase 5).
+// and on change, uploads it as JPEG to the backend's /frame endpoint
+// and, if a model is embedded, also runs on-device OCR and POSTs the
+// result to /result. The JPEG upload always runs regardless of whether
+// on-device OCR is available; see initOndeviceOcr()'s doc comment for
+// what makes it unavailable.
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -9,6 +12,7 @@
 #include "img_converters.h"
 #include "camera_pins.h"
 #include "config.h"
+#include "ondevice_ocr.h"
 #include "uploader.h"
 
 static const uint8_t JPEG_QUALITY = 80;
@@ -85,6 +89,13 @@ static void uploadRoiChange() {
         Serial.println("frame upload failed");
     }
     free(jpegBuf);
+
+    if (ondeviceOcrReady()) {
+        String track = runOndeviceOcr(roiBuffer, ROI_WIDTH, ROI_HEIGHT);
+        if (track.length() > 0 && !uploadResult(track, PLAYER_ID, BACKEND_URL)) {
+            Serial.println("on-device result upload failed");
+        }
+    }
 }
 
 static bool initCamera() {
@@ -140,6 +151,7 @@ void setup() {
     }
 
     connectWiFi();
+    initOndeviceOcr();
 
     Serial.println("camera ready");
 }
