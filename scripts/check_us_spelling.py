@@ -1,116 +1,104 @@
 #!/usr/bin/env python3
-"""Warn on common British English spelling variants.
+"""Warn about British spellings in the given files.
 
-AGENTS.md style rule: use American spelling in code, comments, commit
-messages, and documentation. This is a warning-only check: it always
-exits 0, per the policy's own stated scope for this script. It uses a
-curated word list rather than generic suffix matching (-our, -ise,
--re) because those suffixes also appear in ordinary American words
-("your", "hour", "genre", "acre"), which would make a suffix-based
-version noisy to the point of being ignored.
+Portable and path-generic (unlike lint_style.py, which is hardcoded to
+AGENTS.md in this repo): copy this single file into any repo and point it
+at that repo's own source globs and CI. Always exits 0, even when it finds
+violations; this check is advisory, not blocking.
 """
-
-from __future__ import annotations
-
 import re
-import subprocess
 import sys
+from pathlib import Path
 
-SELF_PATH_SUFFIX = "check_us_spelling.py"
+INLINE_CODE = re.compile(r"`[^`]*`")
 
-BINARY_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".gz", ".tar",
-    ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".mp3", ".exe", ".dll",
-}
-
+# -our -> -or
+# -ise/-isation -> -ize/-ization
+# -re -> -er
+# -ce -> -se
+# -ogue -> -og
+# miscellaneous, plus contested pairs the user chose to enforce
+# (theatre/theater, catalogue/catalog, dialogue/dialog, analogue/analog)
+#
+# Deliberately excluded as ambiguous or dual-valid in American English:
+# glamour, burnt, learnt, disc, grey/gray, judgement/judgment,
+# acknowledgement/acknowledgment, moustache/mustache, and the whole class
+# of unstressed-final-syllable "-el"/"-ol" verb forms (cancelled/canceled,
+# travelled/traveled, traveller/traveler, modelled/modeled, and similar),
+# which American style guides accept in both forms.
 BRITISH_TO_AMERICAN = {
-    "colour": "color", "colours": "colors", "coloured": "colored", "colouring": "coloring",
-    "favour": "favor", "favours": "favors", "favoured": "favored", "favouring": "favoring",
-    "behaviour": "behavior", "behaviours": "behaviors",
-    "honour": "honor", "honours": "honors", "honoured": "honored",
-    "neighbour": "neighbor", "neighbours": "neighbors", "neighbouring": "neighboring",
-    "labour": "labor", "labours": "labors", "laboured": "labored", "labouring": "laboring",
-    "rumour": "rumor", "rumours": "rumors",
-    "humour": "humor", "humoured": "humored", "humouring": "humoring",
-    "flavour": "flavor", "flavours": "flavors", "flavoured": "flavored",
-    "initialise": "initialize", "initialised": "initialized", "initialising": "initializing",
-    "initialisation": "initialization",
-    "organise": "organize", "organised": "organized", "organising": "organizing",
-    "organisation": "organization", "organisations": "organizations",
-    "realise": "realize", "realised": "realized", "realising": "realizing",
-    "realisation": "realization",
-    "recognise": "recognize", "recognised": "recognized", "recognising": "recognizing",
-    "analyse": "analyze", "analysed": "analyzed", "analysing": "analyzing",
-    "catalogue": "catalog", "catalogued": "cataloged",
-    "dialogue": "dialog",
-    "centre": "center", "centres": "centers", "centred": "centered", "centring": "centering",
-    "theatre": "theater", "theatres": "theaters",
-    "litre": "liter", "litres": "liters",
-    "fibre": "fiber", "fibres": "fibers",
-    "calibre": "caliber",
-    "travelling": "traveling", "travelled": "traveled", "traveller": "traveler",
-    "cancelled": "canceled", "cancelling": "canceling",
-    "modelling": "modeling", "modelled": "modeled",
-    "labelled": "labeled", "labelling": "labeling",
-    "signalling": "signaling", "signalled": "signaled",
+    "colour": "color", "behaviour": "behavior", "favour": "favor",
+    "honour": "honor", "labour": "labor", "neighbour": "neighbor",
+    "humour": "humor", "rumour": "rumor", "armour": "armor",
+    "flavour": "flavor", "rigour": "rigor", "vigour": "vigor",
+    "saviour": "savior", "endeavour": "endeavor", "harbour": "harbor",
+    "organise": "organize", "optimise": "optimize", "realise": "realize",
+    "recognise": "recognize", "analyse": "analyze", "authorise": "authorize",
+    "categorise": "categorize", "customise": "customize",
+    "emphasise": "emphasize", "finalise": "finalize",
+    "initialise": "initialize", "localise": "localize",
+    "maximise": "maximize", "minimise": "minimize",
+    "prioritise": "prioritize", "serialise": "serialize",
+    "standardise": "standardize", "summarise": "summarize",
+    "synchronise": "synchronize", "utilise": "utilize",
+    "visualise": "visualize", "capitalise": "capitalize",
+    "criticise": "criticize", "organisation": "organization",
+    "centre": "center", "metre": "meter", "litre": "liter",
+    "theatre": "theater", "fibre": "fiber", "calibre": "caliber",
+    "sombre": "somber", "manoeuvre": "maneuver", "spectre": "specter",
+    "licence": "license", "defence": "defense", "offence": "offense",
+    "pretence": "pretense",
+    "catalogue": "catalog", "dialogue": "dialog", "analogue": "analog",
+    "programme": "program", "aeroplane": "airplane", "tyre": "tire",
+    "kerb": "curb", "cheque": "check", "mould": "mold",
+    "artefact": "artifact", "aluminium": "aluminum", "storey": "story",
+    "sceptic": "skeptic", "practise": "practice", "wilful": "willful",
+    "skilful": "skillful", "fulfil": "fulfill",
+    "instalment": "installment", "enrolment": "enrollment",
     "jewellery": "jewelry",
-    "whilst": "while",
-    "amongst": "among",
-    "defence": "defense",
-    "licence": "license",
-    "programme": "program",
 }
-
-WORD_RE = re.compile(r"\b[A-Za-z]+\b")
-
-
-def run_git(args: list[str]) -> str:
-    result = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
-    if result.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
-    return result.stdout
+BRITISH_PATTERN = re.compile(
+    r"\b(" + "|".join(sorted(BRITISH_TO_AMERICAN, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE,
+)
 
 
-def tracked_files() -> list[str]:
-    output = run_git(["ls-files"])
-    return [line for line in output.splitlines() if line]
+def strip_code(line: str) -> str:
+    """Remove inline code spans so illustrative Bad/Good examples are ignored."""
+    return INLINE_CODE.sub("", line)
 
 
-def is_binary_path(path: str) -> bool:
-    lower = path.lower()
-    return any(lower.endswith(ext) for ext in BINARY_EXTENSIONS)
-
-
-def scan_file(path: str) -> list[str]:
-    warnings = []
-    try:
-        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
-            lines = handle.readlines()
-    except OSError:
-        return warnings
-
-    for lineno, line in enumerate(lines, start=1):
-        for word in WORD_RE.findall(line):
-            suggestion = BRITISH_TO_AMERICAN.get(word.lower())
-            if suggestion:
-                warnings.append(f"{path}:{lineno}: '{word}' -> prefer American spelling '{suggestion}'")
-    return warnings
+def find_violations(text: str, path: str) -> list[str]:
+    """Return one warning per British spelling found in the prose of `text`."""
+    violations = []
+    in_fence = False
+    for number, raw in enumerate(text.splitlines(), start=1):
+        if raw.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        prose = strip_code(raw)
+        for match in BRITISH_PATTERN.finditer(prose):
+            word = match.group(1).lower()
+            violations.append(
+                f"warning: {path}:{number}: British spelling "
+                f"'{match.group(1)}' (use '{BRITISH_TO_AMERICAN[word]}')"
+            )
+    return violations
 
 
 def main() -> int:
-    warnings = []
-    for path in tracked_files():
-        if path.endswith(SELF_PATH_SUFFIX) or is_binary_path(path):
-            continue
-        warnings.extend(scan_file(path))
+    """Warn about British spellings in each given file. Always exits 0."""
+    paths = sys.argv[1:]
+    if not paths:
+        print("usage: check_us_spelling.py FILE [FILE ...]", file=sys.stderr)
+        return 0
 
-    if warnings:
-        print("US spelling check (warning only):")
-        for warning in warnings:
-            print(f"  - {warning}")
-    else:
-        print("US spelling check passed.")
-
+    for path in paths:
+        text = Path(path).read_text(encoding="utf-8")
+        for message in find_violations(text, path):
+            print(message)
     return 0
 
 

@@ -1,66 +1,82 @@
 #!/usr/bin/env python3
-"""Reject commits or PRs attributed to a banned AI agent or vendor.
+"""Flag banned-agent authorship on commits in a PR range.
 
-Checks, for each commit in the given range: author name/email, committer
-name/email, and any "Co-authored-by:" trailer in the commit body, against
-a denylist of banned agent/vendor identifiers. Also checks the PR author
-login when running in GitHub Actions (GITHUB_ACTOR / pull_request event).
+Matches commit author, committer, and Co-authored-by trailer name/email,
+plus the PR author's GitHub login, against a denylist. Never scans
+free-form commit-message body or PR description text: "grok" is an
+ordinary English verb and would false-positive constantly there.
 
-This cannot catch an agent committing under a human's own identity with
-no trailer; that gap is documented in AGENTS.md.
+Limitation: a banned agent committing under a human's own git identity,
+with no Co-authored-by trailer, is invisible to this check. No mechanical
+check can close that gap.
 """
-
-from __future__ import annotations
-
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
 
-BANNED_PATTERNS = [
-    re.compile(r"\bgrok\b", re.IGNORECASE),
-    re.compile(r"\bxai\b", re.IGNORECASE),
-    re.compile(r"x\.ai", re.IGNORECASE),
-]
+DENYLIST_NAMES = ("grok", "xai")
+DENYLIST_EMAIL_DOMAINS = ("x.ai",)
 
-COMMIT_FIELD_SEPARATOR = "\x1f"
-COMMIT_RECORD_SEPARATOR = "\x1e"
+TRAILER = re.compile(r"^Co-authored-by:\s*(?P<name>[^<]*)<(?P<email>[^>]+)>", re.MULTILINE)
+COMMIT_SEP = "\x1e"
+FIELD_SEP = "\x1f"
 
 
-def run_git(args: list[str]) -> str:
+def _matches_denylist(name: str, email: str) -> bool:
+    """Return True if a structured author/email field names a banned agent."""
+    name_lower = name.strip().lower()
+    local_part = email.strip().lower().split("@", 1)[0]
+    for term in DENYLIST_NAMES:
+        pattern = rf"\b{re.escape(term)}\b"
+        if re.search(pattern, name_lower) or re.search(pattern, local_part):
+            return True
+    domain = email.strip().lower().rsplit("@", 1)[-1] if "@" in email else ""
+    return domain in DENYLIST_EMAIL_DOMAINS
+
+
+def find_violations(commits: list[dict], pr_author: str = "") -> list[str]:
+    """Return one message per banned-agent authorship signal found.
+
+    `commits` is a list of dicts with keys: sha, author_name, author_email,
+    committer_name, committer_email, body (used only to parse trailers).
+    """
+    violations = []
+    for commit in commits:
+        sha = commit["sha"][:12]
+        for role in ("author", "committer"):
+            name = commit[f"{role}_name"]
+            email = commit[f"{role}_email"]
+            if _matches_denylist(name, email):
+                violations.append(f"{sha}: banned-agent {role} '{name} <{email}>'")
+        for match in TRAILER.finditer(commit.get("body", "")):
+            name, email = match.group("name").strip(), match.group("email")
+            if _matches_denylist(name, email):
+                violations.append(f"{sha}: banned-agent co-author '{name} <{email}>'")
+    if pr_author and _matches_denylist(pr_author, ""):
+        violations.append(f"PR author: banned-agent login '{pr_author}'")
+    return violations
+
+
+def load_commits(base: str, head: str) -> list[dict]:
+    """Collect commit metadata for the base..head range via git log."""
+    fmt = FIELD_SEP.join(["%H", "%an", "%ae", "%cn", "%ce", "%B"])
     result = subprocess.run(
-        ["git", *args],
+        ["git", "log", f"{base}..{head}", f"--format={fmt}{COMMIT_SEP}"],
         capture_output=True,
         text=True,
-        check=False,
+        check=True,
     )
-    if result.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
-    return result.stdout
-
-
-def matches_banned(text: str) -> str | None:
-    for pattern in BANNED_PATTERNS:
-        if pattern.search(text):
-            return pattern.pattern
-    return None
-
-
-def iter_commits(base: str, head: str) -> list[dict[str, str]]:
-    fmt = COMMIT_FIELD_SEPARATOR.join(
-        ["%H", "%an", "%ae", "%cn", "%ce", "%B"]
-    ) + COMMIT_RECORD_SEPARATOR
-    output = run_git(["log", f"{base}..{head}", f"--format={fmt}"])
     commits = []
-    for raw in output.split(COMMIT_RECORD_SEPARATOR):
-        raw = raw.strip("\n")
-        if not raw:
+    for record in result.stdout.split(COMMIT_SEP):
+        record = record.strip("\n")
+        if not record:
             continue
-        parts = raw.split(COMMIT_FIELD_SEPARATOR)
-        if len(parts) != 6:
-            continue
-        sha, author_name, author_email, committer_name, committer_email, body = parts
+        sha, author_name, author_email, committer_name, committer_email, body = record.split(
+            FIELD_SEP, 5
+        )
         commits.append(
             {
                 "sha": sha,
@@ -74,60 +90,39 @@ def iter_commits(base: str, head: str) -> list[dict[str, str]]:
     return commits
 
 
-def find_coauthors(body: str) -> list[str]:
-    return [
-        line.split(":", 1)[1].strip()
-        for line in body.splitlines()
-        if line.strip().lower().startswith("co-authored-by:")
-    ]
+def pr_author_from_event() -> str:
+    """Read the PR author's GitHub login from the workflow event payload."""
+    event_path = os.environ.get("GITHUB_EVENT_PATH", "")
+    if not event_path or not os.path.isfile(event_path):
+        return ""
+    with open(event_path, encoding="utf-8") as handle:
+        event = json.load(handle)
+    return event.get("pull_request", {}).get("user", {}).get("login", "")
 
 
-def check_commits(base: str, head: str) -> list[str]:
-    violations = []
-    for commit in iter_commits(base, head):
-        fields_to_check = {
-            "author": f"{commit['author_name']} {commit['author_email']}",
-            "committer": f"{commit['committer_name']} {commit['committer_email']}",
-        }
-        for coauthor in find_coauthors(commit["body"]):
-            fields_to_check[f"co-authored-by ({coauthor})"] = coauthor
-
-        for field_name, value in fields_to_check.items():
-            pattern = matches_banned(value)
-            if pattern:
-                violations.append(
-                    f"{commit['sha'][:12]}: {field_name} matches banned pattern "
-                    f"'{pattern}': {value!r}"
-                )
-    return violations
-
-
-def check_pr_author() -> list[str]:
-    actor = os.environ.get("GITHUB_ACTOR", "")
-    if not actor:
-        return []
-    pattern = matches_banned(actor)
-    if pattern:
-        return [f"PR author matches banned pattern '{pattern}': {actor!r}"]
-    return []
+def check(base: str, head: str) -> int:
+    """Check the base..head commit range. Return 0 when clean, 1 on a match."""
+    commits = load_commits(base, head)
+    violations = find_violations(commits, pr_author_from_event())
+    if violations:
+        for message in violations:
+            print(message, file=sys.stderr)
+        print("banned agents must not read, edit, commit, or open PRs here", file=sys.stderr)
+        return 1
+    print("no banned-agent authorship found")
+    return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", default=os.environ.get("GITHUB_BASE_REF", "origin/main"))
-    parser.add_argument("--head", default="HEAD")
+    parser.add_argument("--base", required=True, help="base ref (exclusive)")
+    parser.add_argument("--head", required=True, help="head ref (inclusive)")
     args = parser.parse_args()
-
-    violations = check_commits(args.base, args.head) + check_pr_author()
-
-    if violations:
-        print("Banned agent check failed:", file=sys.stderr)
-        for violation in violations:
-            print(f"  - {violation}", file=sys.stderr)
+    try:
+        return check(args.base, args.head)
+    except subprocess.CalledProcessError as error:
+        print(f"error: git log failed: {error}", file=sys.stderr)
         return 1
-
-    print("Banned agent check passed.")
-    return 0
 
 
 if __name__ == "__main__":

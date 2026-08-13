@@ -1,0 +1,35 @@
+repos:
+  - repo: local
+    hooks:
+      - id: convention-sync-check
+        name: Convention Sync Check
+        entry: python scripts/sync.py --check
+        language: python
+        files: ^(AGENTS\.md|CLAUDE\.md|GEMINI\.md|CONVENTIONS\.md|\.cursorrules|\.clinerules|\.windsurfrules|\.github/copilot-instructions\.md|\.copilot-instructions|scripts/sync\.py)$
+        pass_filenames: false
+      - id: check-persist-credentials
+        name: Check persist-credentials on checkout steps (Rule 11)
+        entry: python scripts/check_persist_credentials.py
+        language: python
+        files: ^\.github/workflows/.*\.ya?ml$
+      - id: check-weak-hashing
+        name: Check for unjustified MD5/SHA-1 (Rule 7)
+        entry: python scripts/check_weak_hashing.py
+        language: python
+        files: ^scripts/.*\.py$
+      - id: check-dockerfile-root
+        name: Check for non-root containers (Rule 12)
+        entry: python scripts/check_dockerfile_root.py
+        language: python
+        files: ^(Dockerfile.*|docker-compose.*\.ya?ml|compose.*\.ya?ml)$
+      - id: check-secrets-heuristic
+        name: Check for likely secrets (Rule 8)
+        entry: python scripts/check_secrets_heuristic.py
+        language: python
+        files: ^(scripts/.*\.py|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|Makefile)$
+      - id: check-branch-name
+        name: Check branch name (Branch naming conventions)
+        entry: python scripts/check_branch_name.py
+        language: python
+        pass_filenames: false
+        stages: [pre-push]

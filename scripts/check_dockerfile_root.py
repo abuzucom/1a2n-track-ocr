@@ -1,129 +1,149 @@
 #!/usr/bin/env python3
-"""Ensure containers run as non-root unless an explicit exception is recorded.
+"""Flag containers with no non-root user configured (Rule 12).
 
-AGENTS.md rule 12: Dockerfiles must end with a non-root USER, compose
-services must set a non-root user, and Kubernetes pod/container specs
-must set runAsNonRoot: true, unless the file carries a comment in the
-exact form:
-  # runtime-root: this container <reason> (Rule 12 exception).
+A portable, path-generic checker: copy this file into any repo and point
+it at Dockerfiles, compose files, and Kubernetes manifests. Text/regex
+based, not a real Dockerfile or YAML parser, to stay stdlib-only like its
+sibling checkers.
 
-This is a heuristic line/text scanner, not a full Dockerfile or YAML
-parser (no new dependency). Kubernetes manifests are checked file-wide
-rather than per-container, so a multi-container manifest with a mix of
-root and non-root containers will not be caught precisely.
+Dockerfiles: only the final build stage matters (build-time root is
+fine); it must carry a `USER` instruction that is not root/0. Compose:
+each service under `services:` must set `user:`. Kubernetes: any manifest
+defining `containers:` must set `runAsNonRoot: true` somewhere, checked
+file-wide rather than per container. The exact-string Rule 12 exception
+comment, `# runtime-root: this container <reason> (Rule 12 exception).`,
+allow-lists an already-approved root container. Blocking: exits 1 on any
+violation.
 """
-
-from __future__ import annotations
-
-import glob
-import os
 import re
 import sys
+from pathlib import Path
 
-EXCEPTION_COMMENT_RE = re.compile(
-    r"#\s*runtime-root:\s*this container .+\(Rule 12 exception\)\.\s*$", re.MULTILINE
-)
-
-USER_DIRECTIVE_RE = re.compile(r"^\s*USER\s+(\S+)", re.IGNORECASE | re.MULTILINE)
-COMPOSE_SERVICE_USER_RE = re.compile(r"^\s*user:\s*\S+", re.MULTILINE)
-K8S_KIND_RE = re.compile(r"^\s*kind:\s*(Pod|Deployment|StatefulSet|DaemonSet|Job|CronJob)\s*$", re.MULTILINE)
-K8S_RUN_AS_NONROOT_RE = re.compile(r"runAsNonRoot:\s*true", re.IGNORECASE)
-
-ROOT_USER_VALUES = {"root", "0"}
+FROM_STAGE = re.compile(r"^\s*FROM\s+\S+", re.IGNORECASE)
+USER_NONROOT = re.compile(r"^\s*USER\s+(?!root\b|0\b)\S+", re.IGNORECASE)
+RUN_AS_NON_ROOT = re.compile(r"runAsNonRoot:\s*true\b")
+EXCEPTION_COMMENT = re.compile(r"#\s*runtime-root:.*\(Rule 12 exception\)\.")
 
 
-def find_dockerfiles() -> list[str]:
-    candidates = set()
-    for root, _dirs, files in os.walk("."):
-        if ".git" in root.split(os.sep):
+def _indent(line: str) -> int:
+    """Return the number of leading spaces on `line`."""
+    return len(line) - len(line.lstrip(" "))
+
+
+def _block(lines: list[str], start: int) -> list[str]:
+    """Return the lines belonging to the block introduced at `start`."""
+    indent = _indent(lines[start])
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        if not lines[index].strip():
             continue
-        for name in files:
-            if name == "Dockerfile" or name.startswith("Dockerfile.") or name.endswith(".dockerfile"):
-                candidates.add(os.path.join(root, name))
-    return sorted(candidates)
+        if _indent(lines[index]) <= indent:
+            end = index
+            break
+    return lines[start:end]
 
 
-def find_compose_files() -> list[str]:
-    patterns = ["docker-compose*.yml", "docker-compose*.yaml", "compose.yml", "compose.yaml"]
-    return sorted({p for pattern in patterns for p in glob.glob(pattern)} | {
-        p for pattern in patterns for p in glob.glob(os.path.join("**", pattern), recursive=True)
-    })
-
-
-def find_k8s_manifests() -> list[str]:
-    manifests = []
-    for path in glob.glob(os.path.join("**", "*.yml"), recursive=True) + glob.glob(
-        os.path.join("**", "*.yaml"), recursive=True
-    ):
-        if ".git" in path.split(os.sep):
+def _leading_comments(lines: list[str], start: int) -> list[str]:
+    """Return comment lines immediately above `start`, in original order."""
+    comments = []
+    index = start - 1
+    while index >= 0:
+        stripped = lines[index].strip()
+        if stripped.startswith("#") or not stripped:
+            comments.append(lines[index])
+            index -= 1
             continue
-        if os.path.join("", ".github", "workflows") in path:
-            continue
-        try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as handle:
-                text = handle.read()
-        except OSError:
-            continue
-        if K8S_KIND_RE.search(text):
-            manifests.append((path, text))
-    return manifests
+        break
+    return list(reversed(comments))
 
 
-def read_text(path: str) -> str:
-    with open(path, "r", encoding="utf-8", errors="ignore") as handle:
-        return handle.read()
-
-
-def check_dockerfile(path: str) -> list[str]:
-    text = read_text(path)
-    if EXCEPTION_COMMENT_RE.search(text):
+def _dockerfile_violations(text: str, path: str) -> list[str]:
+    """Check the final build stage for a non-root USER instruction."""
+    lines = text.splitlines()
+    starts = [index for index, line in enumerate(lines) if FROM_STAGE.match(line)]
+    stage = lines[starts[-1]:] if starts else lines
+    stage_text = "\n".join(stage)
+    if any(USER_NONROOT.match(line) for line in stage):
         return []
+    if EXCEPTION_COMMENT.search(stage_text):
+        return []
+    return [f"{path}: final build stage has no non-root USER (Rule 12)"]
 
-    users = USER_DIRECTIVE_RE.findall(text)
-    effective_user = users[-1] if users else None
 
-    if effective_user is None:
-        return [f"{path}: no USER directive; container runs as root at runtime"]
-    if effective_user.lower() in ROOT_USER_VALUES:
-        return [f"{path}: final USER directive is root ('{effective_user}')"]
+def _compose_violations(text: str, path: str) -> list[str]:
+    """Check every service under `services:` for a `user:` key."""
+    lines = text.splitlines()
+    violations = []
+    for number, line in enumerate(lines):
+        if line.strip() != "services:":
+            continue
+        services_indent = _indent(line)
+        service_indent = None
+        for index in range(number + 1, len(lines)):
+            if not lines[index].strip():
+                continue
+            indent = _indent(lines[index])
+            if indent <= services_indent:
+                break
+            if service_indent is None:
+                service_indent = indent
+            if indent != service_indent:
+                continue
+            block_lines = _leading_comments(lines, index) + _block(lines, index)
+            block = "\n".join(block_lines)
+            if re.search(r"^\s*user:\s*\S", block, re.MULTILINE):
+                continue
+            if EXCEPTION_COMMENT.search(block):
+                continue
+            name = lines[index].strip().rstrip(":")
+            violations.append(
+                f"{path}:{index + 1}: service '{name}' has no non-root user (Rule 12)"
+            )
+        break
+    return violations
+
+
+def _k8s_violations(text: str, path: str) -> list[str]:
+    """Check a manifest defining `containers:` for a file-wide runAsNonRoot."""
+    if "containers:" not in text:
+        return []
+    if RUN_AS_NON_ROOT.search(text) or EXCEPTION_COMMENT.search(text):
+        return []
+    return [f"{path}: containers with no runAsNonRoot: true (Rule 12)"]
+
+
+def find_violations(text: str, path: str) -> list[str]:
+    """Dispatch to the Dockerfile, compose, or Kubernetes check by filename."""
+    name = Path(path).name.lower()
+    if name == "dockerfile" or name.startswith(("dockerfile.", "dockerfile-")):
+        return _dockerfile_violations(text, path)
+    if name.endswith((".yml", ".yaml")) and name.startswith(("docker-compose", "compose")):
+        return _compose_violations(text, path)
+    if name.endswith((".yml", ".yaml")):
+        return _k8s_violations(text, path)
     return []
 
 
-def check_compose_file(path: str) -> list[str]:
-    text = read_text(path)
-    if EXCEPTION_COMMENT_RE.search(text):
-        return []
-    if "services:" not in text:
-        return []
-    if COMPOSE_SERVICE_USER_RE.search(text):
-        return []
-    return [f"{path}: no service sets a non-root 'user:' and no Rule 12 exception comment found"]
-
-
-def check_k8s_manifest(path: str, text: str) -> list[str]:
-    if EXCEPTION_COMMENT_RE.search(text):
-        return []
-    if K8S_RUN_AS_NONROOT_RE.search(text):
-        return []
-    return [f"{path}: no securityContext.runAsNonRoot: true found and no Rule 12 exception comment"]
-
-
 def main() -> int:
-    violations = []
-    for path in find_dockerfiles():
-        violations.extend(check_dockerfile(path))
-    for path in find_compose_files():
-        violations.extend(check_compose_file(path))
-    for path, text in find_k8s_manifests():
-        violations.extend(check_k8s_manifest(path, text))
-
-    if violations:
-        print("Container root check failed:", file=sys.stderr)
-        for violation in violations:
-            print(f"  - {violation}", file=sys.stderr)
+    """Check each given file. Return 0 when all are clean, 1 otherwise."""
+    paths = sys.argv[1:]
+    if not paths:
+        print("usage: check_dockerfile_root.py FILE [FILE ...]", file=sys.stderr)
         return 1
 
-    print("Container root check passed.")
+    all_violations = []
+    for path in paths:
+        text = Path(path).read_text(encoding="utf-8")
+        all_violations.extend(find_violations(text, path))
+
+    if all_violations:
+        for message in all_violations:
+            print(message, file=sys.stderr)
+        print(
+            "fix: set a non-root user, or add the Rule 12 exception comment",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

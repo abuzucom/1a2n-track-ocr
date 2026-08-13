@@ -17,3 +17,17 @@ __pycache__/
 .github/copilot-instructions.md
 GEMINI.md
 CONVENTIONS.md
+
+# This repo's own noise. Build output, virtualenvs, generated model and
+# dataset artifacts, and the reference PDFs in docs/, which are large
+# binaries with no useful text extraction in this context.
+firmware/.pio/
+firmware/models/
+server/output/
+server/.venv/
+ml/.venv/
+ml/dataset/
+ml/model_output/
+ml/fonts/*.ttf
+docs/*.pdf
+*.lock
