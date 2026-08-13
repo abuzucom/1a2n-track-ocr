@@ -1,0 +1,21 @@
+/* Split out of overlay.html so the Caddyfile's default-src 'self'
+   Content-Security-Policy does not block it. An inline <style> needs
+   either 'unsafe-inline' or a per-deploy hash; an external file needs
+   neither. */
+
+body {
+  margin: 0;
+  background: transparent;
+  font-family: sans-serif;
+  color: #fff;
+}
+
+#track {
+  font-size: 2em;
+  font-weight: bold;
+}
+
+#artist {
+  font-size: 1.2em;
+  opacity: 0.8;
+}
