@@ -77,6 +77,12 @@ Public API surface (rules 4 and 5): `POST /frame`, `POST /result`, and the
   `image_to_data` does not.
 - Character segmentation differs between training and firmware.
 - Copy `config.h.example` to `config.h` before any firmware build.
+- Firmware always connects through Caddy over HTTPS with a pinned CA
+  cert (`BACKEND_CA_CERT` in `config.h`); it never talks to uvicorn
+  directly. Both Caddy and uvicorn must be running.
+- `/static` and `/output` are served by Caddy's `file_server` straight
+  off disk, not proxied to the FastAPI app; the bearer-token check on
+  `/frame` and `/result` does not apply to them, by design.
 
 ## Read before touching
 

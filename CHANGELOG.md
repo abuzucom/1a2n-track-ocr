@@ -9,6 +9,16 @@ until 1.0.0.
 
 ## [Unreleased]
 
+### Security
+
+- Firmware now verifies the backend's TLS certificate against a pinned
+  local CA (`BACKEND_CA_CERT` in `config.h`, the Caddy `tls internal`
+  root) instead of calling `WiFiClientSecure::setInsecure()`. The
+  previous "protect token transit" framing only held against a passive
+  listener: `setInsecure()` accepts any certificate, so an active
+  attacker on the same network could present their own certificate and
+  receive the bearer token. Verification now rejects that.
+
 ### Added
 
 - Added `Caddyfile` for a local reverse proxy enforcing HTTPS and OWASP Top 10 security headers.

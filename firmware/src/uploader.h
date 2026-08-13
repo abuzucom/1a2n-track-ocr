@@ -6,11 +6,16 @@
 #include <Arduino.h>
 
 // Both send `Authorization: Bearer <token>`; the backend rejects the
-// upload with 401 without it. Retries with a doubling backoff (see
+// upload with 401 without it. Both verify the backend's TLS certificate
+// against caCert (BACKEND_CA_CERT in config.h) rather than skipping
+// verification, so a host impersonating the backend on the same network
+// is rejected instead of trusted. Retries with a doubling backoff (see
 // uploader.cpp) on failure, so a transient WiFi or backend hiccup does
 // not silently drop a capture.
 bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
-                  const String &captureId, const char *backendUrl, const char *token);
+                  const String &captureId, const char *backendUrl, const char *token,
+                  const char *caCert);
 
 bool uploadResult(const String &track, float confidence, const char *playerId,
-                   const String &captureId, const char *backendUrl, const char *token);
+                   const String &captureId, const char *backendUrl, const char *token,
+                   const char *caCert);
