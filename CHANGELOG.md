@@ -9,6 +9,38 @@ until 1.0.0.
 
 ## [Unreleased]
 
+### Security
+
+- Capture endpoints now require a shared bearer token, configured as
+  `BACKEND_TOKEN` on both the backend and the firmware. The server
+  refuses to start without one rather than serving them open. Comparison
+  uses `hmac.compare_digest`. `/static` and `/output` stay open because
+  OBS reads them and cannot send a header.
+- `player_id` and `capture_id` are validated against a strict identifier
+  pattern. Both reached filesystem paths unvalidated, so a crafted value
+  could write outside the intended directory, either through `../` or
+  through an absolute path, which `pathlib` honors by discarding the
+  left operand. Paths are now re-checked for containment where they are
+  built, so the boundary check is not the only thing standing between a
+  request and an arbitrary file write.
+- A missing `confidence` on `/result` no longer bypasses the on-device
+  confidence gate. It previously skipped the check entirely, so an
+  unmeasured result was treated as trustworthy.
+- Uploads are capped at 4 MB, must begin with the JPEG magic bytes, and
+  decoded dimensions are checked before the 3x upscale, which multiplies
+  pixel count ninefold and made small compressed images a memory bomb.
+- Dataset collection and per-player state are bounded. Both previously
+  grew without limit, keyed on a request-supplied value.
+- `cropRoi` validates `fb->len` and `fb->format` before its `memcpy`,
+  instead of trusting the frame descriptor to describe its own buffer.
+- `.gitignore` excludes `.env`, `*.pem`, `*.key`, and `secrets.*`.
+
+### Changed
+
+- `/frame` is a synchronous endpoint so FastAPI runs its blocking
+  Tesseract call in a threadpool. It previously stalled the event loop
+  for the duration of every request.
+
 ### Added
 
 - `scripts/sync.py` from the `abuzucom/agents` template, and the eight
