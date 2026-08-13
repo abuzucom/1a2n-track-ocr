@@ -24,7 +24,7 @@ EPOCHS = 20
 BATCH_SIZE = 32
 
 
-def load_dataset() -> tuple[np.ndarray, np.ndarray, Counter]:
+def load_dataset() -> tuple[tf.data.Dataset, Counter, int]:
     labels = chars_dataset.load_labels()
     if not labels:
         raise RuntimeError(
@@ -32,7 +32,7 @@ def load_dataset() -> tuple[np.ndarray, np.ndarray, Counter]:
             "and/or synth.py first"
         )
 
-    images = []
+    paths = []
     class_indices = []
     source_counts: Counter = Counter()
 
@@ -43,14 +43,23 @@ def load_dataset() -> tuple[np.ndarray, np.ndarray, Counter]:
         image_path = chars_dataset.IMAGES_DIR / entry["image"]
         if not image_path.is_file():
             continue
-        patch = Image.open(image_path).convert("L")
-        images.append(np.array(patch, dtype=np.float32) / 255.0)
+        paths.append(str(image_path))
         class_indices.append(CHAR_TO_INDEX[char])
         source_counts[(char, entry["source"])] += 1
 
-    x = np.array(images).reshape((-1, PATCH_SIZE, PATCH_SIZE, 1))
-    y = np.array(class_indices, dtype=np.int32)
-    return x, y, source_counts
+    paths = np.array(paths)
+    class_indices = np.array(class_indices, dtype=np.int32)
+
+    dataset = tf.data.Dataset.from_tensor_slices((paths, class_indices))
+
+    def load_image(path, label):
+        image = tf.io.read_file(path)
+        image = tf.image.decode_png(image, channels=1)
+        image = tf.cast(image, tf.float32) / 255.0
+        return image, label
+
+    dataset = dataset.map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
+    return dataset, source_counts, len(paths)
 
 
 def log_class_balance(source_counts: Counter) -> None:
@@ -83,26 +92,25 @@ def build_model(num_classes: int) -> tf.keras.Model:
 
 def run(epochs: int) -> None:
     print("loading dataset...")
-    x, y, source_counts = load_dataset()
-    print(f"loaded {len(x)} samples across {len(CHARSET)} classes")
+    dataset, source_counts, total_samples = load_dataset()
+    print(f"loaded {total_samples} samples across {len(CHARSET)} classes")
     log_class_balance(source_counts)
 
     model = build_model(len(CHARSET))
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
     model.summary()
 
-    # Shuffle before splitting so validation_split draws from a
-    # representative cross-section, not just the tail of the ordered
-    # labels file (which is typically all-synthetic).
-    shuffle_indices = np.random.permutation(len(x))
-    x = x[shuffle_indices]
-    y = y[shuffle_indices]
+    dataset = dataset.shuffle(buffer_size=total_samples, reshuffle_each_iteration=False)
+    
+    val_size = int(total_samples * VALIDATION_SPLIT)
+    
+    val_ds = dataset.take(val_size).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    train_ds = dataset.skip(val_size).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
     model.fit(
-        x, y,
-        validation_split=VALIDATION_SPLIT,
+        train_ds,
+        validation_data=val_ds,
         epochs=epochs,
-        batch_size=BATCH_SIZE,
     )
 
     os.makedirs(MODEL_OUTPUT_DIR, exist_ok=True)

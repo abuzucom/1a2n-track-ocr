@@ -21,14 +21,23 @@ IMAGES_DIR = CHARS_DIR / "images"
 LABELS_PATH = CHARS_DIR / "labels.jsonl"
 
 
-def save_char(image: Image.Image, char: str, source: str, **extra) -> None:
-    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+_dirs_created = False
+
+def init_dirs() -> None:
+    global _dirs_created
+    if not _dirs_created:
+        IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+        _dirs_created = True
+
+def save_char(image: Image.Image, char: str, source: str, **extra) -> dict:
     image_name = f"{uuid.uuid4().hex}.png"
     image.save(IMAGES_DIR / image_name)
+    return {"image": image_name, "char": char, "source": source, **extra}
 
-    entry = {"image": image_name, "char": char, "source": source, **extra}
+def save_labels(entries: list[dict]) -> None:
     with open(LABELS_PATH, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry) + "\n")
+        for entry in entries:
+            handle.write(json.dumps(entry) + "\n")
 
 
 def load_labels() -> list[dict]:

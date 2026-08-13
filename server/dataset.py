@@ -18,7 +18,7 @@ from pathlib import Path
 import validation
 
 DATASET_DIR = Path(os.environ.get("DATASET_DIR", "../ml/dataset"))
-IMAGES_DIR = DATASET_DIR / "images"
+IMAGES_DIR = (DATASET_DIR / "images").resolve()
 LABELS_PATH = DATASET_DIR / "labels.jsonl"
 
 # One image per received frame, forever, is an unbounded disk write
@@ -30,16 +30,17 @@ MAX_SAMPLES = int(os.environ.get("MAX_DATASET_SAMPLES", "20000"))
 logger = logging.getLogger(__name__)
 
 _capacity_warned = False
+_sample_count = None
 
 
 def _at_capacity() -> bool:
-    """Check whether the dataset image directory is at capacity.
+    """Check whether the dataset image directory is at capacity."""
+    global _capacity_warned, _sample_count
+    if _sample_count is None:
+        IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+        _sample_count = sum(1 for _ in IMAGES_DIR.glob("*.jpg"))
 
-    Called only from record(), which creates IMAGES_DIR before this
-    call, so the directory is guaranteed to exist.
-    """
-    global _capacity_warned
-    if sum(1 for _ in IMAGES_DIR.glob("*.jpg")) < MAX_SAMPLES:
+    if _sample_count < MAX_SAMPLES:
         return False
     if not _capacity_warned:
         logger.warning(
@@ -51,7 +52,6 @@ def _at_capacity() -> bool:
 
 
 def record(player_id: str, image_bytes: bytes, track: str, confidence: float) -> None:
-    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     if _at_capacity():
         return
 
@@ -72,3 +72,7 @@ def record(player_id: str, image_bytes: bytes, track: str, confidence: float) ->
     }
     with open(LABELS_PATH, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry) + "\n")
+
+    global _sample_count
+    if _sample_count is not None:
+        _sample_count += 1

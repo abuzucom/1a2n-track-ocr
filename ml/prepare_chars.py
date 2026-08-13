@@ -106,7 +106,7 @@ def _mean_word_confidence(image: Image.Image) -> float:
     return sum(confidences) / len(confidences) if confidences else 0.0
 
 
-def extract_chars(image_path: Path) -> tuple[list[tuple[str, Image.Image, float]], int]:
+def extract_chars(image_path: Path, expected_len: int) -> tuple[list[tuple[str, Image.Image, float]], int]:
     """Return ((char, cropped_patch, confidence) list, dropped_count).
 
     Boxes are dropped for not being a single in-charset character, for a
@@ -114,9 +114,10 @@ def extract_chars(image_path: Path) -> tuple[list[tuple[str, Image.Image, float]
     CONFIDENCE_THRESHOLD."""
     image = preprocess(Image.open(image_path))
     confidence = _mean_word_confidence(image)
-    boxes = pytesseract.image_to_boxes(image, output_type=pytesseract.Output.DICT)
     if confidence < CONFIDENCE_THRESHOLD:
-        return [], len(boxes["char"])
+        return [], expected_len
+
+    boxes = pytesseract.image_to_boxes(image, output_type=pytesseract.Output.DICT)
 
     height = image.height
 
@@ -142,24 +143,30 @@ def extract_chars(image_path: Path) -> tuple[list[tuple[str, Image.Image, float]
 
 def run() -> None:
     track_labels = load_track_labels()
+    chars_dataset.init_dirs()
     kept = 0
     dropped = 0
+    entries = []
 
     for entry in track_labels:
         image_path = IMAGES_DIR / entry["image"]
         if not image_path.is_file():
             continue
-        chars, drop_count = extract_chars(image_path)
+        expected_len = len(entry["track"])
+        chars, drop_count = extract_chars(image_path, expected_len)
         dropped += drop_count
         for char, patch, confidence in chars:
-            chars_dataset.save_char(
+            dataset_entry = chars_dataset.save_char(
                 patch,
                 char,
                 source="real",
                 source_image=entry["image"],
                 confidence=confidence,
             )
+            entries.append(dataset_entry)
             kept += 1
+
+    chars_dataset.save_labels(entries)
 
     print(f"kept {kept} character crops (confidence >= {CONFIDENCE_THRESHOLD})")
     print(f"dropped {dropped} boxes below the confidence threshold or out of charset")
