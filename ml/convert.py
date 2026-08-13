@@ -68,6 +68,9 @@ def evaluate_float(model: tf.keras.Model, dataset: tf.data.Dataset) -> float:
 
 
 def evaluate_tflite(tflite_model: bytes, dataset: tf.data.Dataset, count: int) -> float:
+    if count == 0:
+        return 0.0
+        
     interpreter = tf.lite.Interpreter(model_content=tflite_model)
     interpreter.allocate_tensors()
     input_detail = interpreter.get_input_details()[0]

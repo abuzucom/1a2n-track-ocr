@@ -1,6 +1,7 @@
 #include "uploader.h"
 
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 
 // RFC 2046 requires each multipart boundary line to start with two
 // hyphens, and the closing boundary to end with two more. Written as a
@@ -15,8 +16,12 @@ static const unsigned long RETRY_BASE_DELAY_MS = 500;
 
 static int postFrameOnce(const uint8_t *body, size_t totalLen, const char *backendUrl,
                           const char *token) {
+    WiFiClientSecure client;
+    // Trust local Caddy self-signed certificates without verification
+    client.setInsecure();
+    
     HTTPClient http;
-    http.begin(String(backendUrl) + "/frame");
+    http.begin(client, String(backendUrl) + "/frame");
     http.addHeader("Content-Type", String("multipart/form-data; boundary=") + BOUNDARY_VALUE);
     http.addHeader("Authorization", String("Bearer ") + token);
     int statusCode = http.POST(const_cast<uint8_t *>(body), totalLen);
@@ -92,8 +97,12 @@ static String jsonEscape(const String &input) {
 }
 
 static int postResultOnce(const String &body, const char *backendUrl, const char *token) {
+    WiFiClientSecure client;
+    // Trust local Caddy self-signed certificates without verification
+    client.setInsecure();
+    
     HTTPClient http;
-    http.begin(String(backendUrl) + "/result");
+    http.begin(client, String(backendUrl) + "/result");
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Authorization", String("Bearer ") + token);
     int statusCode = http.POST(body);

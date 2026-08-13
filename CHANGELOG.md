@@ -9,8 +9,14 @@ until 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added `Caddyfile` for a local reverse proxy enforcing HTTPS and OWASP Top 10 security headers.
+- Updated ESP32 firmware in `uploader.cpp` to use `WiFiClientSecure` to protect token transit.
+
 ### Fixed
 
+- Added explicit division-by-zero guards in `firmware/src/ondevice_ocr.cpp` and `ml/convert.py` to prevent crashes from corrupt model parameters or empty datasets.
 - Shuffled training arrays before `validation_split` in `ml/train.py`.
   Keras splits from the tail without shuffling, so the ordered labels
   file produced a validation set of only synthetic samples.
