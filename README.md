@@ -18,6 +18,9 @@ The on-device OCR model is not trained. `firmware/src/ocr_model.h` is a
 zero-length placeholder, and the firmware skips on-device inference when
 no model is embedded. Training needs a dataset, which needs hardware.
 
+New to this? See `docs/quickstart.md` for a step by step guide to flashing
+the hardware and generating training data. The rest of this document is
+the technical reference.
 
 ## Hardware
 
@@ -52,6 +55,10 @@ Run a rig on WiFi to gather and label a dataset, train and export a
 model from it, then flash for BLE and operate. A BLE rig has no
 Tesseract to fall back on, so it halts at boot rather than run without a
 usable model. See `docs/ble_transport.md`.
+
+A rig is powered over USB from the host machine. If WiFi proves
+unworkable in a venue, that cable is the intended fallback and would
+carry frames and results. It is not implemented.
 
 The diagram below shows the WiFi path, which exercises both OCR sources.
 On BLE, the right-hand branch does not exist: the on-device result goes
@@ -421,8 +428,10 @@ Without hardware:
   lazily.
 - Run `pytest ml/tests/` for dataset containment, split isolation, label
   alignment, quality gates, and model-contract validation.
-- Run the policy checks in `scripts/`. CI runs these plus the backend
-  tests, firmware build, and Caddyfile validation on every pull request.
+- Run the policy checks in `scripts/`. CI runs them on every pull request.
+  It runs backend, lock, Caddy, and firmware checks only for relevant
+  paths. Firmware waits until the pull request is ready for review.
+  Project workflows do not rerun after merge.
 
 With a physical rig:
 

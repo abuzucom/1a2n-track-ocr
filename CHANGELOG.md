@@ -14,6 +14,10 @@ until 1.0.0.
 - An editable KiCad 10 reconstruction of the W11 mainboard and expansion
   board schematics, with a KiCad-generated PDF plot, grouped BOM, source
   table, and clean ERC validation.
+- `docs/quickstart.md`: a non-technical, step by step guide to flashing a
+  rig on WiFi, testing it, collecting training data, packaging it for the
+  maintainer, and switching to BLE once a trained model comes back. Linked
+  from the top of `README.md`.
 - Bluetooth LE transport, now the default firmware build. A rig sends
   on-device OCR results to a server on Windows or macOS with no network
   in the path. Results only: BLE does not carry ROI frames, so a BLE rig
@@ -51,9 +55,11 @@ until 1.0.0.
 - `Caddyfile`: local HTTPS reverse proxy with security headers. Firmware
   reaches the backend only through it.
 - `.github/workflows/app-tests.yml`: backend tests, firmware build,
-  manifest and lock agreement, and `caddy validate` in CI. The firmware
-  job runs only when a pull request or push changes firmware or its build
-  inputs.
+  manifest and lock agreement, and `caddy validate` in CI. Application
+  checks run only for relevant paths. Firmware waits until review-ready
+  and restores an incremental build cache on later runs.
+- `scripts/detect_app_changes.py`: classifies changed paths for the
+  application CI gate.
 - `scripts/check_lock_sync.py`: blocks when a requirements manifest and
   its compiled lock disagree.
 - `scripts/sync.py` and the eight tool-specific copies of `AGENTS.md` it
@@ -65,6 +71,11 @@ until 1.0.0.
 
 ### Changed
 
+- `docs/hardware_documentation.md`: the camera lens is confirmed fixed
+  focus, no adjustment ring, by direct inspection.
+- The firmware job builds every transport. It compiled only the one
+  `config.h.example` defaults to, so `TRANSPORT_WIFI` was never built in
+  CI and could break unnoticed.
 - The default firmware transport is BLE. Flashed WiFi rigs are
   unaffected until reflashed, and `TRANSPORT_WIFI` keeps the previous
   behavior.
@@ -80,6 +91,9 @@ until 1.0.0.
   samples never enter either production evaluation split.
 - Pinned GitHub Actions by commit SHA, `esp32-camera` by commit, and the
   Caddy CI image by digest. Tags are mutable.
+- CI cancels superseded pull request runs and fails jobs after 30 minutes.
+  Workflows no longer duplicate successful pull request checks after
+  merge.
 - `/frame` is a synchronous endpoint, so FastAPI runs its blocking
   Tesseract call in a threadpool rather than on the event loop.
 - uvicorn binds to loopback. Caddy is the only entry point.

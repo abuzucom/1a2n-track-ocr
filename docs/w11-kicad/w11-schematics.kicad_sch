@@ -4,8 +4,16 @@
 	(generator_version "10.0")
 	(uuid "a62e3b32-a7de-506f-81af-4e89ae214955")
 	(paper "A0")
+	(title_block
+		(title "1A2N-OCR")
+		(date "2026-08-14")
+		(rev "0.1.0")
+	)
 	(lib_symbols
 		(symbol "W11:Block1"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -103,6 +111,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block10"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -362,6 +373,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block12"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -657,6 +671,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block14"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -988,6 +1005,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block15"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -1337,6 +1357,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block2"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -1452,6 +1475,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block24"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -1963,6 +1989,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block3"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -2096,6 +2125,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block30"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -2715,6 +2747,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block4"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -2866,6 +2901,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block5"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -3035,6 +3073,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block57"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -4140,6 +4181,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block6"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -4327,6 +4371,9 @@
 			(embedded_fonts no)
 		)
 		(symbol "W11:Block9"
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(hide yes)
 			)
@@ -4568,9 +4615,39 @@
 			(embedded_fonts no)
 		)
 	)
+	(text "MCU, flash, clock, antenna, controls, RGB LED, headers, and test points."
+		(exclude_from_sim no)
+		(at 55.01 42 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+		)
+		(uuid "3ab4fbde-788a-5929-a180-c5dddf56b3ba")
+	)
+	(text "Reconstructed from the vendor PDFs in docs/. Verify against hardware before manufacture."
+		(exclude_from_sim no)
+		(at 25 23 0)
+		(effects
+			(font
+				(size 1.5 1.5)
+			)
+		)
+		(uuid "5695830c-1c46-596d-8274-2884376cf5e8")
+	)
+	(text "Camera power and DVP, microSD, PDM microphone, LED, and board connector."
+		(exclude_from_sim no)
+		(at 615.08 42 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+		)
+		(uuid "63aee4a6-861e-53af-9205-d26ec2b0dec9")
+	)
 	(text "Mainboard Power"
 		(exclude_from_sim no)
-		(at 334.41 38 0)
+		(at 334.41 34 0)
 		(effects
 			(font
 				(size 2 2)
@@ -4578,9 +4655,29 @@
 		)
 		(uuid "64c97158-7429-5a5f-bc19-8866abd7f009")
 	)
+	(text "Source nets with one visible endpoint terminate here so ERC remains explicit."
+		(exclude_from_sim no)
+		(at 1040 42 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+		)
+		(uuid "7b726301-de69-58bc-9499-569b49cc8f62")
+	)
+	(text "USB-C, charger, 3.3V buck, battery monitor, IMU, and temperature sensor."
+		(exclude_from_sim no)
+		(at 334.41 42 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+		)
+		(uuid "939d8603-8ebe-55c1-89c3-767e7d179907")
+	)
 	(text "Mainboard Core"
 		(exclude_from_sim no)
-		(at 55.01 38 0)
+		(at 55.01 34 0)
 		(effects
 			(font
 				(size 2 2)
@@ -4588,9 +4685,9 @@
 		)
 		(uuid "9af14c6d-509a-5dd3-97e5-af1f0844d137")
 	)
-	(text "External and test endpoints"
+	(text "External endpoints"
 		(exclude_from_sim no)
-		(at 1040 38 0)
+		(at 1040 34 0)
 		(effects
 			(font
 				(size 2 2)
@@ -4600,7 +4697,7 @@
 	)
 	(text "Expansion Board"
 		(exclude_from_sim no)
-		(at 615.08 38 0)
+		(at 615.08 34 0)
 		(effects
 			(font
 				(size 2 2)
@@ -4608,17 +4705,7 @@
 		)
 		(uuid "d603cb2f-4e9c-5a02-8b79-f7779335d83a")
 	)
-	(text "Source: vendor schematic PDFs in docs/. Verify against hardware before manufacture."
-		(exclude_from_sim no)
-		(at 25 23 0)
-		(effects
-			(font
-				(size 1.5 1.5)
-			)
-		)
-		(uuid "e38ff430-25a8-5c43-82c7-b8169cf3fde4")
-	)
-	(text "W11 ESP32-S3 PDF Reconstruction"
+	(text "1A2N-OCR"
 		(exclude_from_sim no)
 		(at 25 15 0)
 		(effects
@@ -15127,6 +15214,7 @@
 		(uuid "075247ea-3f56-5a1b-9ec9-01d4adc039a3")
 		(property "Reference" "#EXT03"
 			(at 1080.77 88.9 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15137,6 +15225,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 101.6 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15981,6 +16070,7 @@
 		(uuid "1595d04c-853c-5561-b90d-6ffae0070bcd")
 		(property "Reference" "#EXT06"
 			(at 1080.77 142.24 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15991,6 +16081,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 154.94 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -19355,6 +19446,7 @@
 		(uuid "4d8294f3-ba69-5fb7-85fc-ddbe32082819")
 		(property "Reference" "#EXT10"
 			(at 1080.77 213.36 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -19365,6 +19457,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 226.06 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -20638,6 +20731,7 @@
 		(uuid "63f60eb4-0869-5e2b-96f4-e952cfd1b7ee")
 		(property "Reference" "#EXT14"
 			(at 1080.77 284.48 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -20648,6 +20742,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 297.18 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -21192,6 +21287,7 @@
 		(uuid "6c5b731e-8a80-5757-937b-55faf0f6adda")
 		(property "Reference" "#EXT17"
 			(at 1080.77 337.82 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -21202,6 +21298,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 350.52 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23008,6 +23105,7 @@
 		(uuid "8d6871b1-7fd9-5e50-a02c-16203c0ef578")
 		(property "Reference" "#EXT15"
 			(at 1080.77 302.26 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23018,6 +23116,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 314.96 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23308,6 +23407,7 @@
 		(uuid "932c4f2b-3614-52e3-ab79-6097dd0a0904")
 		(property "Reference" "#EXT16"
 			(at 1080.77 320.04 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23318,6 +23418,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 332.74 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23384,6 +23485,7 @@
 		(uuid "932cba06-f9c3-585d-b9ec-d347c29a31c3")
 		(property "Reference" "#EXT11"
 			(at 1080.77 231.14 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23394,6 +23496,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 243.84 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23923,6 +24026,7 @@
 		(uuid "9aecd1d2-5129-5f0a-8399-dbd571da2037")
 		(property "Reference" "#EXT05"
 			(at 1080.77 124.46 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23933,6 +24037,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 137.16 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -24671,6 +24776,7 @@
 		(uuid "a33edc1a-c891-569c-a0ee-bb42ad4d6c82")
 		(property "Reference" "#EXT13"
 			(at 1080.77 266.7 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -24681,6 +24787,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 279.4 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25089,6 +25196,7 @@
 		(uuid "a8c57f90-6570-545e-bef7-aba5a5bcf055")
 		(property "Reference" "#EXT01"
 			(at 1080.77 53.34 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25099,6 +25207,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 66.04 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -26424,6 +26533,7 @@
 		(uuid "c4fd158a-ee3d-5ad6-b76a-c31a07c167a9")
 		(property "Reference" "#EXT08"
 			(at 1080.77 177.8 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -26434,6 +26544,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 190.5 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -26836,6 +26947,7 @@
 		(uuid "cc18425c-6339-554a-94bb-1c194a8333d4")
 		(property "Reference" "#EXT02"
 			(at 1080.77 71.12 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -26846,6 +26958,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 83.82 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28306,6 +28419,7 @@
 		(uuid "dd205e81-0c00-5a4b-b764-a2df5c36be88")
 		(property "Reference" "#EXT09"
 			(at 1080.77 195.58 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28316,6 +28430,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 208.28 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28503,6 +28618,7 @@
 		(uuid "de774eec-b6d6-50bb-9608-a96ef1292752")
 		(property "Reference" "#EXT04"
 			(at 1080.77 106.68 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28513,6 +28629,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 119.38 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28839,6 +28956,7 @@
 		(uuid "e4c39545-7ce4-5203-997e-c91c100bbbad")
 		(property "Reference" "#EXT12"
 			(at 1080.77 248.92 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28849,6 +28967,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 261.62 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28915,6 +29034,7 @@
 		(uuid "e5248ce0-bbd3-5645-99cc-7b8107295720")
 		(property "Reference" "#EXT07"
 			(at 1080.77 160.02 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28925,6 +29045,7 @@
 		)
 		(property "Value" "External endpoint"
 			(at 1080.77 172.72 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects

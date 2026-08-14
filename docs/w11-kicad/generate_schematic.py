@@ -16,6 +16,9 @@ PARTS_PATH = ROOT / "parts.csv"
 OUTPUT_PATH = ROOT / "w11-schematics.kicad_sch"
 SYMBOL_LIBRARY_PATH = ROOT / "w11.kicad_sym"
 PROJECT_NAME = "w11-schematics"
+SCHEMATIC_TITLE = "1A2N-OCR"
+SCHEMATIC_REVISION = "0.1.0"
+SCHEMATIC_DATE = "2026-08-14"
 SECTIONS = ("Mainboard Core", "Mainboard Power", "Expansion Board")
 SECTION_X = {"Mainboard Core": 80.01, "Mainboard Power": 359.41, "Expansion Board": 640.08}
 NAMESPACE = uuid.UUID("6dbf951b-814f-4c5e-a3a8-8d70229a9f30")
@@ -143,6 +146,7 @@ def library_symbol(pin_count: int, *, embedded: bool) -> str:
     return "\n".join(
         [
             f'\t\t(symbol "{symbol_name}"',
+            "\t\t\t(pin_numbers (hide yes))",
             "\t\t\t(pin_names (offset 0.508) (hide yes))",
             "\t\t\t(exclude_from_sim no)",
             "\t\t\t(in_bom yes)",
@@ -252,8 +256,8 @@ def pin_connections(part: Part, x: float, y: float) -> list[str]:
 def offsheet_marker(reference: str, net: str, x: float, y: float, root_uuid: str) -> str:
     """Return one non-BOM block marking a source net that leaves the page."""
     properties = [
-        instance_property("Reference", reference, x, sub(y, 6.35)),
-        instance_property("Value", "External endpoint", x, y + 6.35),
+        instance_property("Reference", reference, x, sub(y, 6.35), True),
+        instance_property("Value", "External endpoint", x, y + 6.35, True),
         instance_property("Footprint", "", x, y, True),
         instance_property("Datasheet", "", x, y, True),
         instance_property("Description", f"Offsheet endpoint for {net}", x, y, True),
@@ -346,18 +350,32 @@ def build_schematic(parts: list[Part]) -> str:
     instances.extend(endpoint_instances)
     connections.extend(endpoint_connections)
     notes = [
-        schematic_text("W11 ESP32-S3 PDF Reconstruction", 25, 15, 3.0, "title"),
+        schematic_text(SCHEMATIC_TITLE, 25, 15, 3.0, "title"),
         schematic_text(
-            "Source: vendor schematic PDFs in docs/. Verify against hardware before manufacture.",
+            "Reconstructed from the vendor PDFs in docs/. Verify against hardware before manufacture.",
             25,
             23,
             1.5,
-            "warning",
+            "source-warning",
         ),
-        schematic_text("External and test endpoints", 1040, 38, 2.0, "external-endpoints"),
+        schematic_text("External endpoints", 1040, 34, 2.0, "external-endpoints"),
+        schematic_text(
+            "Source nets with one visible endpoint terminate here so ERC remains explicit.",
+            1040,
+            42,
+            1.1,
+            "external-comment",
+        ),
     ]
+    comments = {
+        "Mainboard Core": "MCU, flash, clock, antenna, controls, RGB LED, headers, and test points.",
+        "Mainboard Power": "USB-C, charger, 3.3V buck, battery monitor, IMU, and temperature sensor.",
+        "Expansion Board": "Camera power and DVP, microSD, PDM microphone, LED, and board connector.",
+    }
     for section in SECTIONS:
-        notes.append(schematic_text(section, sub(SECTION_X[section], 25), 38, 2.0, section))
+        x = sub(SECTION_X[section], 25)
+        notes.append(schematic_text(section, x, 34, 2.0, section))
+        notes.append(schematic_text(comments[section], x, 42, 1.1, f"{section}:comment"))
     return "\n".join(
         [
             "(kicad_sch",
@@ -366,6 +384,11 @@ def build_schematic(parts: list[Part]) -> str:
             '\t(generator_version "1.0")',
             f'\t(uuid "{root_uuid}")',
             '\t(paper "A0")',
+            "\t(title_block",
+            f'\t\t(title "{SCHEMATIC_TITLE}")',
+            f'\t\t(date "{SCHEMATIC_DATE}")',
+            f'\t\t(rev "{SCHEMATIC_REVISION}")',
+            "\t)",
             "\t(lib_symbols",
             *definitions,
             "\t)",

@@ -3,6 +3,9 @@
 	(generator "kicad_symbol_editor")
 	(generator_version "10.0")
 	(symbol "Block1"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -100,6 +103,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block10"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -359,6 +365,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block12"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -654,6 +663,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block14"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -985,6 +997,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block15"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -1334,6 +1349,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block2"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -1449,6 +1467,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block24"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -1960,6 +1981,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block3"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -2093,6 +2117,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block30"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -2712,6 +2739,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block4"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -2863,6 +2893,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block5"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -3032,6 +3065,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block57"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -4137,6 +4173,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block6"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
@@ -4324,6 +4363,9 @@
 		(embedded_fonts no)
 	)
 	(symbol "Block9"
+		(pin_numbers
+			(hide yes)
+		)
 		(pin_names
 			(hide yes)
 		)
