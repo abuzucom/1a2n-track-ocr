@@ -62,6 +62,9 @@ until 1.0.0.
 
 ### Changed
 
+- The firmware job builds every transport. It compiled only the one
+  `config.h.example` defaults to, so `TRANSPORT_WIFI` was never built in
+  CI and could break unnoticed.
 - The default firmware transport is BLE. Flashed WiFi rigs are
   unaffected until reflashed, and `TRANSPORT_WIFI` keeps the previous
   behavior.
