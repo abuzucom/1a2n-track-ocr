@@ -137,16 +137,18 @@ versions produce different labels from identical frames. Use Tesseract
 5.x, and pin the exact version in the deployment environment if labels
 must be comparable across machines.
 
-The capture endpoints require a shared secret. Set `BACKEND_TOKEN` to a
-long random value, matching `BACKEND_TOKEN` in the firmware's `config.h`.
-The server refuses to start without it rather than running open.
+Each rig needs its own credential. Set `BACKEND_TOKENS` to comma
+separated `player_id:token` pairs, each token matching that rig's
+`BACKEND_TOKEN` in `config.h`. A credential authorizes only its own
+`player_id`, so one compromised rig cannot overwrite another deck's
+output. The server refuses to start without it rather than running open.
 
 Bind uvicorn to loopback. Caddy runs on the same host and is the only
 thing that should reach it; binding to `0.0.0.0` would expose a
 plaintext port alongside the HTTPS one.
 
 ```bash
-cd server && pip install -r requirements.lock && BACKEND_TOKEN=your-long-random-value uvicorn app:app --host 127.0.0.1 --port 8000
+cd server && pip install -r requirements.lock && BACKEND_TOKENS=deck1:<token1>,deck2:<token2> uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
 #### Running behind Caddy (required)
@@ -187,9 +189,9 @@ cd firmware && cp src/config.h.example src/config.h
 ```
 
 Edit `src/config.h`: WiFi credentials, `BACKEND_URL`, `BACKEND_TOKEN`,
-`PLAYER_ID`, and the ROI. `BACKEND_TOKEN` must match the backend's
-environment variable of the same name, or every upload is rejected with
-401. `config.h` is gitignored and must never be committed. The ROI values
+`PLAYER_ID`, and the ROI. `BACKEND_TOKEN` must appear in the backend's
+`BACKEND_TOKENS` paired with this rig's `PLAYER_ID`, or uploads are
+rejected with 401, and a mismatched pairing with 403. `config.h` is gitignored and must never be committed. The ROI values
 shipped in the example are placeholders; calibrate them against the
 physical camera mount.
 

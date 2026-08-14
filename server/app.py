@@ -43,7 +43,7 @@ class OndeviceResult(BaseModel):
 
 
 # Fail at import rather than serving the capture endpoints open.
-auth.expected_token()
+auth.credentials()
 
 sinks.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -56,14 +56,18 @@ app.mount("/output", StaticFiles(directory=str(sinks.OUTPUT_DIR)), name="output"
 # blocks. As an async endpoint it stalled the event loop for the whole
 # call, serializing concurrent requests. FastAPI runs a sync endpoint in
 # a threadpool instead.
-@app.post("/frame", dependencies=[Depends(auth.require_token)])
+@app.post("/frame")
 def receive_frame(
     player_id: Annotated[str, Form()],
     capture_id: Annotated[str, Form()],
     file: Annotated[UploadFile, File()],
+    authorized: Annotated[str, Depends(auth.authorized_player)] = "",
 ):
     validation.validate_identifier(player_id, "player_id")
     validation.validate_identifier(capture_id, "capture_id")
+    # The credential decides which player_id it may write, so a rig
+    # cannot claim another deck's identity.
+    auth.require_player_match(authorized, player_id)
 
     # Read one byte past the cap so an oversized body is detected without
     # reading all of it into memory.
@@ -83,10 +87,14 @@ def receive_frame(
     return {"track": result.track, "confidence": result.confidence, "changed": changed}
 
 
-@app.post("/result", dependencies=[Depends(auth.require_token)])
-def receive_result(payload: OndeviceResult):
+@app.post("/result")
+def receive_result(
+    payload: OndeviceResult,
+    authorized: Annotated[str, Depends(auth.authorized_player)] = "",
+):
     validation.validate_identifier(payload.player_id, "player_id")
     validation.validate_identifier(payload.capture_id, "capture_id")
+    auth.require_player_match(authorized, payload.player_id)
     agree = arbiter.record_ondevice(
         payload.player_id, payload.capture_id, payload.track, payload.confidence
     )
