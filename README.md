@@ -142,7 +142,12 @@ dependency with a hash.
 Regenerate a lock after editing the matching `.txt`:
 
 ```bash
-cd server && python -m piptools compile --generate-hashes --strip-extras --output-file requirements.lock requirements.txt
+cd server
+python -m piptools compile \
+  --generate-hashes \
+  --strip-extras \
+  --output-file requirements.lock \
+  requirements.txt
 ```
 
 These locks were resolved on Windows and CPython 3.13 with no
@@ -189,7 +194,12 @@ thing that should reach it; binding to `0.0.0.0` would expose a
 plaintext port alongside the HTTPS one.
 
 ```bash
-cd server && pip install -r requirements.lock && BACKEND_TOKENS=deck1:<token1>,deck2:<token2> uvicorn app:app --host 127.0.0.1 --port 8000
+cd server
+pip install -r requirements.lock
+export BACKEND_TOKENS=deck1:<token1>,deck2:<token2>
+uvicorn app:app \
+  --host 127.0.0.1 \
+  --port 8000
 ```
 
 #### Serving BLE rigs
@@ -245,7 +255,8 @@ another machine.
 ### Firmware
 
 ```bash
-cd firmware && cp src/config.h.example src/config.h
+cd firmware
+cp src/config.h.example src/config.h
 ```
 
 Edit `src/config.h`. Define exactly one transport, `TRANSPORT_BLE`
@@ -267,7 +278,9 @@ at boot without one, since nothing else reads the screen on that
 transport. Collect the dataset on a `TRANSPORT_WIFI` build first.
 
 ```bash
-cd firmware && pio run && pio run -t upload
+cd firmware
+pio run
+pio run -t upload
 ```
 
 Production rigs use the compile-only `w11-esp32s3-production`
@@ -282,11 +295,16 @@ provisioning boundary.
 Only useful once `ml/dataset/` holds real captures from a running rig.
 
 ```bash
-cd ml && pip install -r requirements.lock
+cd ml
+pip install -r requirements.lock
 ```
 
 ```bash
-cd ml && python synth.py && python prepare_chars.py && python train.py && python convert.py
+cd ml
+python synth.py
+python prepare_chars.py
+python train.py
+python convert.py
 ```
 
 Preparation rejects unexpected paths, oversized images, OCR timeouts,
@@ -299,7 +317,10 @@ quantization-loss gates pass.
 Then embed the result and rebuild the firmware:
 
 ```bash
-cd ml && python export_charset.py && python export_model_header.py ../firmware/models/ocr_model.tflite
+cd ml
+python export_charset.py
+python export_model_header.py \
+  ../firmware/models/ocr_model.tflite
 ```
 
 ## Design decisions
