@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "firmware": {
+    "platformio_core": "6.1.19",
+    "platform": {
+      "name": "pioarduino/platform-espressif32",
+      "version": "55.03.311",
+      "commit": "2a01b8848872983802e5f6f17d0b004df659b3c9",
+      "release_url": "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip",
+      "archive_sha256": "313625fe62ef4a7a0bfb9fee40cf261254302a24445bad7d6fc34c2012de67a6"
+    },
+    "arduino_esp32": {
+      "version": "3.3.11",
+      "core_url": "https://github.com/espressif/arduino-esp32/releases/download/3.3.11/esp32-core-3.3.11.tar.xz",
+      "core_sha256": "90bf08cd2e6979c54ce81bc6bfad3b288481e6f389d9e4ecb606d7b376e198a7",
+      "libraries_url": "https://github.com/espressif/arduino-esp32/releases/download/3.3.11/esp32-core-3.3.11-libs.tar.xz",
+      "libraries_sha256": "3cd58bcd67cb2105c058aef8c3fbdd233e2eae07bd41b5ee80c7652a5950e512"
+    },
+    "esp32_camera_commit": "202df95d7b1dc72e9303ad78f47b8dc9f339e6a1",
+    "chirale_tensorflow_lite": "2.0.0"
+  },
+  "runtime": {
+    "caddy": {
+      "version": "2.11.4-alpine",
+      "image_digest": "sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+    },
+    "tesseract": {
+      "version": "5.5.3.20260724",
+      "platform": "windows-x86_64",
+      "binary_sha256": "c66f0f12ed76f6aa455dac97684bbc86756d6a732380bee09122454cfda3f420"
+    },
+    "traineddata": {
+      "language": "eng",
+      "eng_sha256": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+    }
+  }
+}

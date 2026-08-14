@@ -13,10 +13,9 @@ from collections import Counter
 
 import numpy as np
 import tensorflow as tf
-from PIL import Image
 
-import chars_dataset
-from charset import CHARSET, CHAR_TO_INDEX, PATCH_SIZE
+import dataset_splits
+from charset import CHARSET, PATCH_SIZE
 
 MODEL_OUTPUT_DIR = "model_output"
 VALIDATION_SPLIT = 0.2
@@ -24,32 +23,10 @@ EPOCHS = 20
 BATCH_SIZE = 32
 
 
-def load_dataset() -> tuple[tf.data.Dataset, Counter, int]:
-    labels = chars_dataset.load_labels()
-    if not labels:
-        raise RuntimeError(
-            "no samples in ml/dataset/chars/labels.jsonl; run prepare_chars.py "
-            "and/or synth.py first"
-        )
-
-    paths = []
-    class_indices = []
-    source_counts: Counter = Counter()
-
-    for entry in labels:
-        char = entry["char"]
-        if char not in CHAR_TO_INDEX:
-            continue
-        image_path = chars_dataset.IMAGES_DIR / entry["image"]
-        if not image_path.is_file():
-            continue
-        paths.append(str(image_path))
-        class_indices.append(CHAR_TO_INDEX[char])
-        source_counts[(char, entry["source"])] += 1
-
-    paths = np.array(paths)
-    class_indices = np.array(class_indices, dtype=np.int32)
-
+def build_dataset(samples: list[dataset_splits.Sample]) -> tf.data.Dataset:
+    """Build a TensorFlow dataset from validated sample metadata."""
+    paths = np.array([str(sample.path) for sample in samples])
+    class_indices = np.array([sample.class_index for sample in samples], dtype=np.int32)
     dataset = tf.data.Dataset.from_tensor_slices((paths, class_indices))
 
     def load_image(path, label):
@@ -59,7 +36,29 @@ def load_dataset() -> tuple[tf.data.Dataset, Counter, int]:
         return image, label
 
     dataset = dataset.map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
-    return dataset, source_counts, len(paths)
+    return dataset
+
+
+def load_dataset() -> tuple[tf.data.Dataset, Counter, int]:
+    """Return all validated samples for existing callers."""
+    samples = dataset_splits.load_samples()
+    source_counts = Counter((sample.char, sample.source) for sample in samples)
+    return build_dataset(samples), source_counts, len(samples)
+
+
+def load_datasets() -> tuple[tf.data.Dataset, tf.data.Dataset, Counter, int]:
+    """Return disjoint training and validation datasets."""
+    samples = dataset_splits.load_samples()
+    dataset_splits.require_class_coverage(samples, "train")
+    train_samples = [sample for sample in samples if sample.split == "train"]
+    validation_samples = [sample for sample in samples if sample.split == "validation"]
+    if not validation_samples:
+        raise RuntimeError("validation split has no samples")
+
+    source_counts = Counter((sample.char, sample.source) for sample in samples)
+    train_dataset = build_dataset(train_samples)
+    validation_dataset = build_dataset(validation_samples)
+    return train_dataset, validation_dataset, source_counts, len(train_samples)
 
 
 def log_class_balance(source_counts: Counter) -> None:
@@ -92,20 +91,19 @@ def build_model(num_classes: int) -> tf.keras.Model:
 
 def run(epochs: int) -> None:
     print("loading dataset...")
-    dataset, source_counts, total_samples = load_dataset()
-    print(f"loaded {total_samples} samples across {len(CHARSET)} classes")
+    train_dataset, validation_dataset, source_counts, training_samples = load_datasets()
+    print(f"loaded {training_samples} training samples across {len(CHARSET)} classes")
     log_class_balance(source_counts)
 
     model = build_model(len(CHARSET))
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
     model.summary()
 
-    dataset = dataset.shuffle(buffer_size=total_samples, reshuffle_each_iteration=False)
-    
-    val_size = int(total_samples * VALIDATION_SPLIT)
-    
-    val_ds = dataset.take(val_size).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-    train_ds = dataset.skip(val_size).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    train_ds = train_dataset.shuffle(
+        buffer_size=training_samples,
+        reshuffle_each_iteration=True,
+    ).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    val_ds = validation_dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
     model.fit(
         train_ds,

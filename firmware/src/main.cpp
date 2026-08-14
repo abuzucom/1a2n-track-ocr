@@ -108,7 +108,7 @@ static bool ensureWiFiConnected() {
     return true;
 }
 
-static void uploadRoiChange() {
+static bool uploadRoiChange() {
     // One ID per capture, shared between the /frame and /result POSTs
     // below, so the backend's arbiter can pair the Tesseract and
     // on-device results for the same ROI without needing to guess from
@@ -123,14 +123,17 @@ static void uploadRoiChange() {
     );
     if (!ok) {
         Serial.println("JPEG encode failed, skipping upload");
-        return;
+        return false;
     }
 
-    if (!uploadFrame(jpegBuf, jpegLen, PLAYER_ID, captureId, BACKEND_URL, BACKEND_TOKEN,
-                      BACKEND_CA_CERT)) {
-        Serial.println("frame upload failed");
-    }
+    bool frameUploaded = uploadFrame(
+        jpegBuf, jpegLen, PLAYER_ID, captureId, BACKEND_URL, BACKEND_TOKEN, BACKEND_CA_CERT
+    );
     free(jpegBuf);
+    if (!frameUploaded) {
+        Serial.println("frame upload failed");
+        return false;
+    }
 
     if (ondeviceOcrReady()) {
         OndeviceResult result = runOndeviceOcr(roiBuffer, ROI_WIDTH, ROI_HEIGHT);
@@ -143,6 +146,7 @@ static void uploadRoiChange() {
             Serial.println("on-device result upload failed");
         }
     }
+    return true;
 }
 
 static bool initCamera() {
@@ -232,7 +236,8 @@ void loop() {
     uint32_t roiHash = fnv1aHash(roiBuffer, (size_t)ROI_WIDTH * ROI_HEIGHT * 2);
     if (roiHash != lastRoiHash) {
         Serial.printf("ROI changed: hash 0x%08x\n", roiHash);
-        lastRoiHash = roiHash;
-        uploadRoiChange();
+        if (uploadRoiChange()) {
+            lastRoiHash = roiHash;
+        }
     }
 }

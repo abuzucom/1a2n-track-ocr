@@ -76,6 +76,10 @@ Testing/
 
 # PlatformIO
 firmware/.pio/
+firmware/.dummy/
+firmware/managed_components/
+firmware/sdkconfig.defaults
+firmware/sdkconfig.*
 
 # secrets, never commit
 .env

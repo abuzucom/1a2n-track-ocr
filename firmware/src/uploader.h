@@ -9,9 +9,8 @@
 // upload with 401 without it. Both verify the backend's TLS certificate
 // against caCert (BACKEND_CA_CERT in config.h) rather than skipping
 // verification, so a host impersonating the backend on the same network
-// is rejected instead of trusted. Retries with a doubling backoff (see
-// uploader.cpp) on failure, so a transient WiFi or backend hiccup does
-// not silently drop a capture.
+// is rejected instead of trusted. TLS, connection, read, and retry
+// deadlines bound failures. Retries use a doubling backoff.
 bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
                   const String &captureId, const char *backendUrl, const char *token,
                   const char *caCert);

@@ -10,13 +10,20 @@ on-device inference is skipped at runtime; see main.cpp.
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
+
+from model_validation import MAX_TFLITE_BYTES, validate_tflite_model
 
 OUTPUT_PATH = "../firmware/src/ocr_model.h"
 
 
 def generate(tflite_path: str) -> str:
-    with open(tflite_path, "rb") as handle:
+    model_path = Path(tflite_path)
+    if model_path.stat().st_size > MAX_TFLITE_BYTES:
+        raise ValueError(f"TFLite model exceeds the {MAX_TFLITE_BYTES} byte limit")
+    with open(model_path, "rb") as handle:
         model_bytes = handle.read()
+    validate_tflite_model(model_bytes)
 
     hex_bytes = ", ".join(f"0x{byte:02x}" for byte in model_bytes)
     return (
