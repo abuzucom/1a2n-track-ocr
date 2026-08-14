@@ -33,14 +33,10 @@ class OndeviceResult(BaseModel):
     player_id: str
     capture_id: str
     track: str = Field(max_length=validation.MAX_TRACK_LENGTH)
-    # Stays optional so the request contract does not break, but a
-    # missing value no longer skips the confidence gate; see arbiter.py.
-    #
-    # allow_inf_nan=False is the load-bearing part. Pydantic accepts NaN
-    # and Infinity for a bare float, and "NaN < threshold" is False, so a
-    # NaN confidence sailed through the low-confidence gate and counted
-    # toward on-device trust. A confidence is a dequantized softmax
-    # value, so 0.0 through 1.0 inclusive is its real domain.
+    # Optional preserves the request contract, but a missing value no
+    # longer skips the gate; see arbiter.py. allow_inf_nan matters:
+    # Pydantic accepts NaN for a bare float, and "NaN < threshold" is
+    # False. Confidence is a dequantized softmax value, so 0.0 to 1.0.
     confidence: Optional[float] = Field(
         default=None, ge=0.0, le=1.0, allow_inf_nan=False
     )

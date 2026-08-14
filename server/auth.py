@@ -1,14 +1,12 @@
 """Shared-secret authentication for the capture endpoints.
 
-The backend binds to all interfaces so the rig can reach it over the
-LAN, which means anyone else on that LAN can reach it too. Input
-validation does not help here: a POST to /result from an unauthorized
-host is a perfectly well formed request, and its payload goes straight
-to a live stream overlay. A shared secret is what separates the rig from
-everyone else on the venue network.
+Anyone on the LAN can reach these endpoints. Input validation does not
+help: a POST from an unauthorized host is a well formed request whose
+payload reaches a live stream overlay. The shared secret separates the
+rig from everyone else on the network.
 
-Scope: /frame and /result only. The /static and /output mounts stay
-open, because OBS reads them and cannot send a header.
+Covers /frame and /result only. /static and /output stay open, since OBS
+cannot send a header.
 """
 
 from __future__ import annotations

@@ -24,15 +24,13 @@ DATASET_DIR = Path(os.environ.get("DATASET_DIR", "../ml/dataset"))
 IMAGES_DIR = (DATASET_DIR / "images").resolve()
 LABELS_PATH = DATASET_DIR / "labels.jsonl"
 
-# One image per received frame, forever, is an unbounded disk write
-# reachable by anyone who can call /frame. Collection stops at a cap
-# rather than filling the volume; raise these deliberately when
-# actually collecting a training set.
+# One image per frame, forever, is an unbounded disk write reachable by
+# anyone who can call /frame. Raise these deliberately when collecting a
+# training set.
 MAX_SAMPLES = int(os.environ.get("MAX_DATASET_SAMPLES", "20000"))
 
-# A count is not a storage bound. 20000 samples at the 4MB upload cap is
-# roughly 78 GiB, which nobody intended to authorize, so bytes are
-# capped too and whichever limit is reached first stops collection.
+# A count is not a storage bound: 20000 samples at the 4MB upload cap is
+# roughly 78 GiB. Whichever limit is reached first stops collection.
 MAX_DATASET_BYTES = int(os.environ.get("MAX_DATASET_BYTES", str(2 * 1024 * 1024 * 1024)))
 
 # Stop before the volume itself is full, so filling the dataset cannot
