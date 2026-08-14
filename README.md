@@ -36,6 +36,27 @@ two rigs, each with its own `PLAYER_ID`.
 
 ## How it works
 
+A rig reaches the backend over one of two transports, picked at build
+time in `config.h`. They are phases of the same system rather than
+competing options:
+
+| | `TRANSPORT_BLE` (default) | `TRANSPORT_WIFI` |
+|---|---|---|
+| Carries | On-device OCR results | ROI frames plus results |
+| Needs a network | No | Yes, plus Caddy and a pinned CA |
+| Needs an embedded model | Yes, it is the only source | No |
+| Produces training data | No | Yes, Tesseract auto-labels every frame |
+| Use it for | Operating in a booth | Collecting a dataset on a trusted network |
+
+Run a rig on WiFi to gather and label a dataset, train and export a
+model from it, then flash for BLE and operate. A BLE rig has no
+Tesseract to fall back on, so it halts at boot rather than run without a
+usable model. See `docs/ble_transport.md`.
+
+The diagram below shows the WiFi path, which exercises both OCR sources.
+On BLE, the right-hand branch does not exist: the on-device result goes
+straight to the arbiter over Bluetooth LE and publishes on its own.
+
 ```
 [XDJ screen] ...camera...> [W11 ESP32-S3 firmware]
                                      |
@@ -83,22 +104,28 @@ two rigs, each with its own `PLAYER_ID`.
                                             (OBS Browser Source)
 ```
 
-Both OCR paths run on every changed frame; neither is a fallback for
-the other. Tesseract's output auto-labels the on-device model's training
-data, and the arbiter publishes the on-device result only once its
-agreement rate clears the threshold.
+On WiFi both OCR paths run on every changed frame; neither is a fallback
+for the other. Tesseract's output auto-labels the on-device model's
+training data, and the arbiter publishes the on-device result only once
+its agreement rate clears the threshold.
 
-Caddy and uvicorn are separate processes; both must run. Firmware never
-talks to uvicorn directly. Caddy serves `/static` and `/output` off disk
-without authentication, since OBS cannot send a bearer token. Only
-`/frame` and `/result` are proxied and token-checked.
+On BLE there is no Tesseract result to compare against, so the arbiter
+records the on-device read as the sole source: the confidence gates still
+apply, the agreement scoring does not.
+
+Caddy and uvicorn are separate processes; both must run for the WiFi
+path, and firmware never talks to uvicorn directly. Caddy serves
+`/static` and `/output` off disk without authentication, since OBS
+cannot send a bearer token. Only `/frame` and `/result` are proxied and
+token-checked. BLE bypasses Caddy entirely; the bridge applies its own
+size cap in place of Caddy's.
 
 ## Repo layout
 
 | Path | Contents |
 |---|---|
 | `firmware/` | PlatformIO project, Arduino framework, ESP32-S3 |
-| `server/` | FastAPI backend, Tesseract OCR, arbitration, output sinks |
+| `server/` | FastAPI backend, Tesseract OCR, arbitration, BLE bridge, output sinks |
 | `ml/` | Character classifier training pipeline (see `ml/README.md`) |
 | `docs/` | Board schematics, FCC filings, chip datasheets, player manuals |
 | `scripts/` | AGENTS.md policy check scripts, run by CI |
@@ -121,6 +148,11 @@ cd server && python -m piptools compile --generate-hashes --strip-extras --outpu
 These locks were resolved on Windows and CPython 3.13 with no
 environment markers. Regenerate on Linux or macOS; TensorFlow resolves
 differently.
+
+`server/requirements-ble.txt` is optional and only needed to run the BLE
+transport. Regenerating it on your OS matters more than for the others:
+bleak's transitive dependencies are platform specific, so a lock compiled
+on one OS names packages that do not exist on another.
 
 Actions and `esp32-camera` are pinned by commit SHA, with the version in
 a trailing comment. Tags are mutable.
@@ -151,10 +183,29 @@ plaintext port alongside the HTTPS one.
 cd server && pip install -r requirements.lock && BACKEND_TOKENS=deck1:<token1>,deck2:<token2> uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-#### Running behind Caddy (required)
+#### Serving BLE rigs
 
-The firmware always connects over HTTPS through Caddy; it never talks to
-uvicorn directly. Both processes run together.
+Set `BLE_ENABLED=1` to run the BLE bridge alongside the HTTP server, and
+install `requirements-ble.lock` first. `BLE_MAX_DEVICES` caps concurrent
+rigs, default 4.
+
+```bash
+cd server && pip install -r requirements-ble.lock && BACKEND_TOKENS=deck1:<token1> BLE_ENABLED=1 uvicorn app:app --host 127.0.0.1 --port 8000
+```
+
+The bridge runs inside the uvicorn process rather than as its own
+service, because `arbiter` and `sinks` hold process-local state that a
+second process would duplicate and race on. On macOS the terminal
+application needs Bluetooth permission; the server logs the exact fix if
+it is denied. See `docs/ble_transport.md`.
+
+Caddy is still needed for OBS to read the overlay over HTTPS, but a BLE
+rig does not go through it.
+
+#### Running behind Caddy (required for WiFi rigs)
+
+On `TRANSPORT_WIFI` the firmware always connects over HTTPS through
+Caddy; it never talks to uvicorn directly. Both processes run together.
 
 1. Install [Caddy](https://caddyserver.com/).
 2. Run Caddy from the repository root, which generates a local CA the
@@ -188,12 +239,23 @@ another machine.
 cd firmware && cp src/config.h.example src/config.h
 ```
 
-Edit `src/config.h`: WiFi credentials, `BACKEND_URL`, `BACKEND_TOKEN`,
-`PLAYER_ID`, and the ROI. `BACKEND_TOKEN` must appear in the backend's
-`BACKEND_TOKENS` paired with this rig's `PLAYER_ID`, or uploads are
-rejected with 401, and a mismatched pairing with 403. `config.h` is gitignored and must never be committed. The ROI values
-shipped in the example are placeholders; calibrate them against the
-physical camera mount.
+Edit `src/config.h`. Define exactly one transport, `TRANSPORT_BLE`
+(default) or `TRANSPORT_WIFI`, then set what that transport needs:
+
+- Both: `BACKEND_TOKEN`, `PLAYER_ID`, and the ROI.
+- `TRANSPORT_BLE`: `BLE_PASSKEY`, a random six digit pairing code.
+- `TRANSPORT_WIFI`: `WIFI_SSID`, `WIFI_PASSWORD`, `BACKEND_URL`, and
+  `BACKEND_CA_CERT`. These are unused on a BLE build.
+
+`BACKEND_TOKEN` must appear in the backend's `BACKEND_TOKENS` paired with
+this rig's `PLAYER_ID`, or uploads are rejected with 401, and a
+mismatched pairing with 403. `config.h` is gitignored and must never be
+committed. The ROI values shipped in the example are placeholders;
+calibrate them against the physical camera mount.
+
+A `TRANSPORT_BLE` build needs a trained model in `ocr_model.h` and halts
+at boot without one, since nothing else reads the screen on that
+transport. Collect the dataset on a `TRANSPORT_WIFI` build first.
 
 ```bash
 cd firmware && pio run && pio run -t upload
@@ -257,6 +319,25 @@ regardless.
 does not show the track name field. An empty OCR result holds the last
 known good value instead of blanking the overlay.
 
+**BLE carries results, not frames.** A ROI JPEG is tens of KB and BLE
+moves tens of KB per second. Sending frames would cost seconds per
+capture to deliver data the on-device model has already reduced to a
+string. The cost is that a BLE rig contributes no training data, which
+is why WiFi remains the dataset-collection transport rather than a
+deprecated one.
+
+**The transport is a compile-time choice, not a runtime fallback.** The
+board has one 2.4GHz antenna feed shared by both radios, so running WiFi
+and BLE together means two stacks contending for one front end. Picking
+one at build time also keeps the unused stack out of the binary, which
+matters on a board already carrying the camera driver and TFLite-Micro.
+
+**The BLE bridge runs inside the uvicorn process.** `arbiter` and
+`sinks` hold their state in process-local globals. A separate bridge
+process would keep its own copies and the two would race writing
+`now_playing.json`, losing the ordering `sinks.update` maintains under
+its lock.
+
 ## Component status
 
 | Component | State |
@@ -268,6 +349,8 @@ known good value instead of blanking the overlay.
 | On-device TFLite-Micro inference | Built, no trained model embedded |
 | Arbitration between the two OCR sources | Built and tested |
 | WiFi reconnect, retry and backoff, confidence rejection | Built, unverified on hardware |
+| BLE firmware transport, pairing, framing, result queue | Built, unverified on hardware |
+| BLE server bridge, framing, auth, multi-rig handling | Built and tested, no radio in the loop |
 
 Also outstanding: recreate the W11 schematics as an editable KiCad
 project in `docs/`, with a PDF plot and a BOM.
@@ -277,9 +360,13 @@ project in `docs/`, with a PDF plot and a BOM.
 Without hardware:
 
 - Build the firmware with `pio run`. Copy `config.h.example` to
-  `config.h` first.
+  `config.h` first. Build both transports by flipping the macro, so
+  neither overflows its partition.
 - Run `pytest server/tests/` for the arbiter's agreement tracking, trust
-  threshold, input bounds, and concurrency behavior.
+  threshold, sole-source publishing, input bounds, concurrency behavior,
+  and the BLE bridge's framing, authentication, and multi-rig handling.
+  The bridge tests need no Bluetooth stack; `ble_bridge.py` imports bleak
+  lazily.
 - Run the policy checks in `scripts/`. CI runs these plus the backend
   tests, firmware build, and Caddyfile validation on every pull request.
 
@@ -291,6 +378,20 @@ With a physical rig:
   training on it.
 - Drop WiFi and confirm recovery without a manual reset.
 - Restart the backend mid-upload and confirm the retry path runs.
+
+With a physical rig on BLE:
+
+- Confirm a build with a placeholder `ocr_model.h` halts at boot rather
+  than running silently.
+- Pair from both a Mac and a Windows host, granting Bluetooth permission
+  where prompted.
+- Power cycle the rig, and separately restart the server, confirming each
+  reconnects from the bond without re-pairing.
+- Walk the host out of range, change the track twice, walk back, and
+  confirm the queued results arrive and the overlay ends correct.
+- Run two rigs with distinct credentials: both should appear in
+  `now_playing.json` as distinct `OCR-<suffix>` devices, and powering one
+  down should not disturb the other.
 
 ## Conventions
 

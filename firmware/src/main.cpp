@@ -1,23 +1,45 @@
 // Captures the configured ROI on a timer, hashes it to detect a change,
-// and on change, uploads it as JPEG to the backend's /frame endpoint
-// and, if a model is embedded, also runs on-device OCR and POSTs the
-// result to /result. The JPEG upload always runs regardless of whether
-// on-device OCR is available; see initOndeviceOcr()'s doc comment for
-// what makes it unavailable.
+// and on change, delivers what it found over the transport this build
+// selected in config.h.
+//
+// On TRANSPORT_WIFI it uploads the crop as JPEG to the backend's /frame
+// endpoint and, if a model is embedded, also runs on-device OCR and
+// POSTs the result to /result. The JPEG upload always runs regardless
+// of whether on-device OCR is available; see initOndeviceOcr()'s doc
+// comment for what makes it unavailable.
+//
+// On TRANSPORT_BLE there is no frame upload: BLE carries results only,
+// so on-device OCR is the whole pipeline and a model is mandatory.
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <string.h>
 #include "esp_camera.h"
 #include "img_converters.h"
 #include "camera_pins.h"
 #include "config.h"
 #include "ondevice_ocr.h"
+
+#if defined(TRANSPORT_WIFI) && defined(TRANSPORT_BLE)
+#error "config.h defines both TRANSPORT_WIFI and TRANSPORT_BLE; define exactly one"
+#endif
+#if !defined(TRANSPORT_WIFI) && !defined(TRANSPORT_BLE)
+#error "config.h defines no transport; define TRANSPORT_WIFI or TRANSPORT_BLE"
+#endif
+
+#ifdef TRANSPORT_WIFI
+#include <WiFi.h>
 #include "uploader.h"
+#endif
+
+#ifdef TRANSPORT_BLE
+#include "ble_transport.h"
+#endif
 
 static const uint8_t JPEG_QUALITY = 80;
+#ifdef TRANSPORT_WIFI
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 static const unsigned long WIFI_RECONNECT_TIMEOUT_MS = 10000;
+#endif
 
 static const framesize_t FRAME_SIZE = FRAMESIZE_VGA;
 static const int FRAME_WIDTH = 640;
@@ -65,6 +87,7 @@ static void halt(const char *message) {
     }
 }
 
+#ifdef TRANSPORT_WIFI
 static void connectWiFi() {
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -108,13 +131,9 @@ static bool ensureWiFiConnected() {
     return true;
 }
 
-static void uploadRoiChange() {
-    // One ID per capture, shared between the /frame and /result POSTs
-    // below, so the backend's arbiter can pair the Tesseract and
-    // on-device results for the same ROI without needing to guess from
-    // arrival order.
-    String captureId = String(millis());
-
+// Encode the ROI and upload it for Tesseract to read and label. This is
+// what produces the training data; BLE has no equivalent.
+static void uploadRoiFrame(const String &captureId) {
     uint8_t *jpegBuf = nullptr;
     size_t jpegLen = 0;
     bool ok = fmt2jpg(
@@ -131,17 +150,45 @@ static void uploadRoiChange() {
         Serial.println("frame upload failed");
     }
     free(jpegBuf);
+}
+#endif  // TRANSPORT_WIFI
 
-    if (ondeviceOcrReady()) {
-        OndeviceResult result = runOndeviceOcr(roiBuffer, ROI_WIDTH, ROI_HEIGHT);
-        // An empty track means segmentation found no characters (ROI
-        // text not present, e.g. the unit is on a screen with no track
-        // field), not a misread; there is nothing useful to upload.
-        if (result.track.length() > 0 &&
-            !uploadResult(result.track, result.confidence, PLAYER_ID, captureId, BACKEND_URL,
-                           BACKEND_TOKEN, BACKEND_CA_CERT)) {
-            Serial.println("on-device result upload failed");
-        }
+// Deliver one on-device result over whichever transport this build
+// selected. Split out so uploadRoiChange reads the same either way.
+static bool sendOndeviceResult(const OndeviceResult &result, const String &captureId) {
+#ifdef TRANSPORT_WIFI
+    return uploadResult(result.track, result.confidence, PLAYER_ID, captureId, BACKEND_URL,
+                         BACKEND_TOKEN, BACKEND_CA_CERT);
+#else
+    return sendResultBle(result.track, result.confidence, PLAYER_ID, captureId, BACKEND_TOKEN);
+#endif
+}
+
+static void uploadRoiChange() {
+    // One ID per capture, shared between the /frame and /result POSTs
+    // below, so the backend's arbiter can pair the Tesseract and
+    // on-device results for the same ROI without needing to guess from
+    // arrival order. On BLE only the result exists, but the backend
+    // still logs against it.
+    String captureId = String(millis());
+
+#ifdef TRANSPORT_WIFI
+    uploadRoiFrame(captureId);
+#endif
+
+    if (!ondeviceOcrReady()) {
+        return;
+    }
+
+    OndeviceResult result = runOndeviceOcr(roiBuffer, ROI_WIDTH, ROI_HEIGHT);
+    // An empty track means segmentation found no characters (ROI text
+    // not present, e.g. the unit is on a screen with no track field),
+    // not a misread; there is nothing useful to upload.
+    if (result.track.length() == 0) {
+        return;
+    }
+    if (!sendOndeviceResult(result, captureId)) {
+        Serial.println("on-device result upload failed");
     }
 }
 
@@ -197,8 +244,26 @@ void setup() {
         halt("camera init failed, halting");
     }
 
+#ifdef TRANSPORT_WIFI
     connectWiFi();
+#endif
+#ifdef TRANSPORT_BLE
+    if (!bleTransportBegin(BLE_PASSKEY)) {
+        halt("BLE init failed, halting");
+    }
+#endif
+
     initOndeviceOcr();
+
+#ifdef TRANSPORT_BLE
+    // On BLE the on-device model is the only source of a track: nothing
+    // uploads frames, so nothing else can read the screen. Without this
+    // the rig would run forever, capturing and detecting changes and
+    // sending nothing, which looks identical to a radio problem.
+    if (!ondeviceOcrReady()) {
+        halt("BLE build has no usable on-device model, halting. See docs/ble_transport.md");
+    }
+#endif
 
     Serial.println("camera ready");
 }
@@ -211,9 +276,19 @@ void loop() {
     }
     lastCaptureMs = now;
 
+#ifdef TRANSPORT_WIFI
+    // Nothing can be done without the network, so skip the cycle.
     if (!ensureWiFiConnected()) {
         return;
     }
+#endif
+#ifdef TRANSPORT_BLE
+    // Deliberately not the WiFi behavior above: a disconnected BLE rig
+    // still captures and still queues, so a track change that happened
+    // while the host was away is delivered when it returns rather than
+    // missed. See ble_transport.cpp.
+    bleTransportFlushPending();
+#endif
 
     camera_fb_t *fb = esp_camera_fb_get();
     if (fb == nullptr) {

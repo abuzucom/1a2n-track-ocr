@@ -2,19 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
-from typing import Annotated, Optional
+from contextlib import asynccontextmanager
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
 
 import arbiter
 import auth
+import ble_bridge
 import dataset
+import ingest
 import ocr
 import sinks
 import validation
+# Re-exported: the model moved to ingest.py so the BLE bridge parses
+# payloads through the same field constraints. Kept importable from here
+# because it is part of the /result request contract.
+from ingest import OndeviceResult  # noqa: F401
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -29,25 +37,35 @@ MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 JPEG_MAGIC = b"\xff\xd8\xff"
 
 
-class OndeviceResult(BaseModel):
-    player_id: str
-    capture_id: str
-    track: str = Field(max_length=validation.MAX_TRACK_LENGTH)
-    # Optional preserves the request contract, but a missing value no
-    # longer skips the gate; see arbiter.py. allow_inf_nan matters:
-    # Pydantic accepts NaN for a bare float, and "NaN < threshold" is
-    # False. Confidence is a dequantized softmax value, so 0.0 to 1.0.
-    confidence: Optional[float] = Field(
-        default=None, ge=0.0, le=1.0, allow_inf_nan=False
-    )
-
-
 # Fail at import rather than serving the capture endpoints open.
 auth.credentials()
 
 sinks.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Run the BLE bridge alongside the HTTP server, if enabled.
+
+    In-process rather than a separate service: arbiter and sinks hold
+    process-local state, so a second process would keep its own copy and
+    the two would race writing the now_playing files. See ble_bridge.py.
+    """
+    if not ble_bridge.enabled():
+        yield
+        return
+
+    task = asyncio.create_task(ble_bridge.run_bridge())
+    try:
+        yield
+    finally:
+        task.cancel()
+        # Awaited, not abandoned: a cancelled task that is never awaited
+        # swallows whatever it raised on the way down.
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/output", StaticFiles(directory=str(sinks.OUTPUT_DIR)), name="output")
 
@@ -92,10 +110,6 @@ def receive_result(
     payload: OndeviceResult,
     authorized: Annotated[str, Depends(auth.authorized_player)] = "",
 ):
-    validation.validate_identifier(payload.player_id, "player_id")
-    validation.validate_identifier(payload.capture_id, "capture_id")
-    auth.require_player_match(authorized, payload.player_id)
-    agree = arbiter.record_ondevice(
-        payload.player_id, payload.capture_id, payload.track, payload.confidence
-    )
-    return {"received": True, "agree": agree}
+    # sole_source stays off here: a rig that can reach this endpoint over
+    # HTTP also uploads frames, so Tesseract arbitration applies.
+    return ingest.record_ondevice_result(payload, authorized)

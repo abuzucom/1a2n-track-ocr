@@ -3,6 +3,8 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 
+#include "result_json.h"
+
 // RFC 2046 requires each multipart boundary line to start with two
 // hyphens, and the closing boundary to end with two more. Written as a
 // hex escape rather than two literal hyphen characters, so it doesn't
@@ -74,31 +76,6 @@ bool uploadFrame(const uint8_t *jpegData, size_t jpegLen, const char *playerId,
     return ok;
 }
 
-static String jsonEscape(const String &input) {
-    String out;
-    out.reserve(input.length() + 8);
-    for (size_t i = 0; i < input.length(); i++) {
-        char c = input[i];
-        if (c == '"' || c == '\\') {
-            out += '\\';
-            out += c;
-        } else if (c == '\n') {
-            out += "\\n";
-        } else if (c == '\r') {
-            out += "\\r";
-        } else if (c == '\t') {
-            out += "\\t";
-        } else if ((unsigned char)c < 0x20) {
-            char buf[8];
-            snprintf(buf, sizeof(buf), "\\u%04x", c);
-            out += buf;
-        } else {
-            out += c;
-        }
-    }
-    return out;
-}
-
 static int postResultOnce(const String &body, const char *backendUrl, const char *token,
                            const char *caCert) {
     WiFiClientSecure client;
@@ -116,10 +93,9 @@ static int postResultOnce(const String &body, const char *backendUrl, const char
 bool uploadResult(const String &track, float confidence, const char *playerId,
                    const String &captureId, const char *backendUrl, const char *token,
                    const char *caCert) {
-    String body = String("{\"player_id\":\"") + jsonEscape(String(playerId)) +
-                  "\",\"capture_id\":\"" + jsonEscape(captureId) +
-                  "\",\"track\":\"" + jsonEscape(track) +
-                  "\",\"confidence\":" + String(confidence, 4) + "}";
+    // No token in the body: this path sends it as an Authorization
+    // header instead. See postResultOnce.
+    String body = buildResultJson(track, confidence, playerId, captureId, nullptr);
 
     for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         int statusCode = postResultOnce(body, backendUrl, token, caCert);

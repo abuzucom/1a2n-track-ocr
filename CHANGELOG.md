@@ -11,6 +11,31 @@ until 1.0.0.
 
 ### Added
 
+- Bluetooth LE transport, now the default firmware build. A rig sends
+  on-device OCR results to a server on Windows or macOS with no network
+  in the path. Results only: BLE does not carry ROI frames, so a BLE rig
+  runs no Tesseract comparison and contributes no training data. Build
+  with `TRANSPORT_WIFI` in `config.h` for the HTTPS path, which is what
+  collects the dataset the on-device model is trained from. See
+  `docs/ble_transport.md`.
+- `server/ble_bridge.py`: BLE central, running inside the uvicorn
+  process under `BLE_ENABLED`. Serves several rigs at once, capped by
+  `BLE_MAX_DEVICES`, and rejects a second device claiming a
+  `player_id` that is already connected.
+- `firmware/src/ble_transport.cpp`: GATT peripheral, LE Secure
+  Connections pairing with `BLE_PASSKEY`, and an acknowledged framing
+  protocol over a notify characteristic.
+- Undelivered results are queued on the rig and flushed oldest first on
+  reconnect, so a track change during a dropout is not lost.
+- `sole_source` on `arbiter.record_ondevice`, letting the on-device
+  model publish when it is the only source. The confidence gates still
+  apply; the agreement scoring does not, having nothing to compare
+  against. Existing callers are unaffected.
+- `server/ingest.py`: the result path `/result` and the BLE bridge
+  share, so neither can drift from the other's validation.
+- `bleak` as an optional server dependency, pinned in
+  `server/requirements-ble.txt`. An HTTP-only deployment installs
+  nothing new.
 - `Caddyfile`: local HTTPS reverse proxy with security headers. Firmware
   reaches the backend only through it.
 - `.github/workflows/app-tests.yml`: backend tests, firmware build,
@@ -26,6 +51,13 @@ until 1.0.0.
 
 ### Changed
 
+- The default firmware transport is BLE. Flashed WiFi rigs are
+  unaffected until reflashed, and `TRANSPORT_WIFI` keeps the previous
+  behavior.
+- `docs/hardware_documentation.md`: Bluetooth moves out of "Open
+  questions" into a "Radios" subsection under "Confirmed facts". The
+  vendor specification's silence on Bluetooth was a gap in that
+  document, not evidence the module lacks the radio.
 - Pinned GitHub Actions by commit SHA, `esp32-camera` by commit, and the
   Caddy CI image by digest. Tags are mutable.
 - `/frame` is a synchronous endpoint, so FastAPI runs its blocking
