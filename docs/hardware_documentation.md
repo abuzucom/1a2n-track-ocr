@@ -95,7 +95,7 @@ the physical antenna.
 
 - **SoC:** ESP32-S3 dual-core 32-bit LX7 @ up to 240MHz, integrated NPU, INT8/FP16 AI inference. Matches the official product spec.
 - **Memory:** 512KB SRAM (on-die), 8MB PSRAM, 16MB SPI NOR flash with OTA support. Matches the official product spec and the W25Q128JWUIQ flash on the schematic.
-- **Camera sensor:** OV5640, DVP interface, JPEG capture up to UXGA resolution, PSRAM-buffered. Source: wiki page only. The official product specification does not name a camera sensor part number. Not confirmed against a camera datasheet.
+- **Camera sensor:** OV5640, DVP interface, JPEG capture up to UXGA resolution, PSRAM-buffered. Source: wiki page only. The official product specification does not name a camera sensor part number. Not confirmed against a camera datasheet. Confirmed by direct inspection: the lens is fixed focus, no adjustment ring.
 - **Other on-board peripherals:** QMI8658C 6-axis IMU, temperature/humidity sensor, 20-channel 12-bit ADC, 3x SPI, 3x UART (2Mbps max), 2x I2S audio ports
 - **Power:** USB Type-C (5V/1A), 3.7V lithium battery with charge management, or 3.3-5V external DC. Sleep current <=1uA.
 - **Form factor:** 24.54 x 17.78 x 4.50mm (mainboard module)

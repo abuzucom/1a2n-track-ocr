@@ -18,6 +18,9 @@ The on-device OCR model is not trained. `firmware/src/ocr_model.h` is a
 zero-length placeholder, and the firmware skips on-device inference when
 no model is embedded. Training needs a dataset, which needs hardware.
 
+New to this? See `docs/quickstart.md` for a step by step guide to flashing
+the hardware and generating training data. The rest of this document is
+the technical reference.
 
 ## Hardware
 

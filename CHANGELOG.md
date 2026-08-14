@@ -11,6 +11,10 @@ until 1.0.0.
 
 ### Added
 
+- `docs/quickstart.md`: a non-technical, step by step guide to flashing a
+  rig on WiFi, testing it, collecting training data, packaging it for the
+  maintainer, and switching to BLE once a trained model comes back. Linked
+  from the top of `README.md`.
 - Bluetooth LE transport, now the default firmware build. A rig sends
   on-device OCR results to a server on Windows or macOS with no network
   in the path. Results only: BLE does not carry ROI frames, so a BLE rig
@@ -64,6 +68,8 @@ until 1.0.0.
 
 ### Changed
 
+- `docs/hardware_documentation.md`: the camera lens is confirmed fixed
+  focus, no adjustment ring, by direct inspection.
 - The firmware job builds every transport. It compiled only the one
   `config.h.example` defaults to, so `TRANSPORT_WIFI` was never built in
   CI and could break unnoticed.
