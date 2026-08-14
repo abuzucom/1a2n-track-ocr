@@ -1,0 +1,8 @@
+# Optional: only needed to run the BLE transport (BLE_ENABLED=1).
+# An HTTP-only deployment installs requirements.lock and nothing here.
+#
+# bleak's transitive dependencies are per-OS (pyobjc on macOS, winrt on
+# Windows, dbus-fast on Linux), so this lock, like requirements.lock,
+# resolves for whichever OS compiled it. Regenerate it on yours; see the
+# dependency pinning section in README.md.
+bleak==3.0.2
