@@ -48,7 +48,8 @@ until 1.0.0.
 - `Caddyfile`: local HTTPS reverse proxy with security headers. Firmware
   reaches the backend only through it.
 - `.github/workflows/app-tests.yml`: backend tests, firmware build,
-  manifest and lock agreement, and `caddy validate` in CI.
+  manifest and lock agreement, and `caddy validate` in CI. The firmware
+  job runs only when a pull request changes firmware or its build inputs.
 - `scripts/check_lock_sync.py`: blocks when a requirements manifest and
   its compiled lock disagree.
 - `scripts/sync.py` and the eight tool-specific copies of `AGENTS.md` it

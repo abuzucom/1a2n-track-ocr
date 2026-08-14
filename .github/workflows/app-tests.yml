@@ -18,6 +18,35 @@ permissions:
   contents: read
 
 jobs:
+  detect-firmware-changes:
+    name: Detect firmware changes
+    runs-on: ubuntu-latest
+    outputs:
+      firmware: ${{ steps.firmware.outputs.changed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check firmware paths
+        id: firmware
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BASE_SHA"...HEAD -- \
+            firmware \
+            dependency-provenance.json \
+            scripts/verify_dependency_provenance.py \
+            .github/workflows/app-tests.yml; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   backend-tests:
     name: Backend tests
     runs-on: ubuntu-latest
@@ -58,6 +87,8 @@ jobs:
 
   firmware-build:
     name: Firmware build
+    needs: detect-firmware-changes
+    if: needs.detect-firmware-changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
