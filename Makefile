@@ -18,3 +18,4 @@ lint:
 
 test:
 	cd server && python -m pytest tests/
+	cd ml && python -m pytest tests/

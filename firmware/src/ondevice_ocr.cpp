@@ -1,6 +1,8 @@
 #include "ondevice_ocr.h"
 
 #include <Chirale_TensorFlowLite.h>
+#include <math.h>
+#include "third_party/flatbuffers/include/flatbuffers/verifier.h"
 #include "tensorflow/lite/micro/all_ops_resolver.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
@@ -25,9 +27,44 @@ static TfLiteTensor *inputTensor = nullptr;
 static TfLiteTensor *outputTensor = nullptr;
 static bool ready = false;
 
+static bool validateTensorContract() {
+    bool inputShapeOk = inputTensor != nullptr && inputTensor->dims != nullptr &&
+                        inputTensor->dims->size == 4 && inputTensor->dims->data[0] == 1 &&
+                        inputTensor->dims->data[1] == PATCH_SIZE &&
+                        inputTensor->dims->data[2] == PATCH_SIZE &&
+                        inputTensor->dims->data[3] == 1;
+    bool inputStorageOk = inputShapeOk && inputTensor->type == kTfLiteInt8 &&
+                          inputTensor->data.int8 != nullptr &&
+                          inputTensor->bytes >= PATCH_SIZE * PATCH_SIZE &&
+                          isfinite(inputTensor->params.scale) && inputTensor->params.scale > 0.0f;
+    if (!inputStorageOk) {
+        Serial.println("on-device OCR model input contract is invalid, skipping");
+        return false;
+    }
+
+    bool outputShapeOk = outputTensor != nullptr && outputTensor->dims != nullptr &&
+                         outputTensor->dims->size == 2 && outputTensor->dims->data[0] == 1 &&
+                         outputTensor->dims->data[1] == CHARSET_SIZE;
+    bool outputStorageOk = outputShapeOk && outputTensor->type == kTfLiteInt8 &&
+                           outputTensor->data.int8 != nullptr &&
+                           outputTensor->bytes >= CHARSET_SIZE &&
+                           isfinite(outputTensor->params.scale) && outputTensor->params.scale > 0.0f;
+    if (!outputStorageOk) {
+        Serial.println("on-device OCR model output contract is invalid, skipping");
+        return false;
+    }
+    return true;
+}
+
 bool initOndeviceOcr() {
     if (g_model_len == 0) {
         Serial.println("no on-device OCR model embedded, skipping on-device inference");
+        return false;
+    }
+
+    flatbuffers::Verifier verifier(g_model, static_cast<size_t>(g_model_len));
+    if (!tflite::VerifyModelBuffer(verifier)) {
+        Serial.println("on-device OCR model FlatBuffer is invalid, skipping");
         return false;
     }
 
@@ -48,22 +85,7 @@ bool initOndeviceOcr() {
 
     inputTensor = interpreter->input(0);
     outputTensor = interpreter->output(0);
-
-    bool inputShapeOk = inputTensor->dims->size == 4 &&
-                         inputTensor->dims->data[1] == PATCH_SIZE &&
-                         inputTensor->dims->data[2] == PATCH_SIZE;
-    if (!inputShapeOk) {
-        Serial.println("on-device OCR model input shape does not match PATCH_SIZE, skipping");
-        return false;
-    }
-
-    if (outputTensor->dims->size == 0) {
-        Serial.println("on-device OCR model output has no dimensions, skipping");
-        return false;
-    }
-    int outputSize = outputTensor->dims->data[outputTensor->dims->size - 1];
-    if (outputSize != CHARSET_SIZE) {
-        Serial.println("on-device OCR model output size does not match CHARSET_SIZE, skipping");
+    if (!validateTensorContract()) {
         return false;
     }
 

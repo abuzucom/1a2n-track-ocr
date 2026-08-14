@@ -16,6 +16,8 @@ from pathlib import Path
 
 from PIL import Image
 
+import dataset_io
+
 CHARS_DIR = Path(os.environ.get("CHARS_DATASET_DIR", "dataset/chars"))
 IMAGES_DIR = CHARS_DIR / "images"
 LABELS_PATH = CHARS_DIR / "labels.jsonl"
@@ -41,7 +43,4 @@ def save_labels(entries: list[dict]) -> None:
 
 
 def load_labels() -> list[dict]:
-    if not LABELS_PATH.exists():
-        return []
-    with open(LABELS_PATH, "r", encoding="utf-8") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+    return dataset_io.load_bounded_jsonl(LABELS_PATH)

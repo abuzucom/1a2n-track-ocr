@@ -37,6 +37,10 @@ jobs:
         working-directory: server
         run: python -m pytest tests/ -v
 
+      - name: Run ML assurance tests
+        working-directory: ml
+        run: python -m pytest tests/ -v
+
   lock-consistency:
     name: Manifest and lock agree
     runs-on: ubuntu-latest
@@ -64,21 +68,32 @@ jobs:
         with:
           python-version: "3.12"
 
-      # The toolchain and framework packages are hundreds of MB and
-      # dominate this job's runtime, so cache them across runs. Keyed on
-      # platformio.ini, since that is what selects the platform version.
-      - name: Cache PlatformIO packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: |
-            ~/.platformio/.cache
-            ~/.platformio/packages
-            ~/.platformio/platforms
-          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
-          restore-keys: pio-${{ runner.os }}-
-
       - name: Install PlatformIO
         run: pip install platformio==6.1.19
+
+      - name: Verify firmware dependency archives
+        run: |
+          python scripts/verify_dependency_provenance.py \
+            --firmware-output-dir "$RUNNER_TEMP/firmware-packages"
+
+      - name: Install pinned firmware platform
+        run: |
+          pio pkg install --global --platform \
+            "https://github.com/pioarduino/platform-espressif32.git#2a01b8848872983802e5f6f17d0b004df659b3c9" \
+            --force
+
+      - name: Bind platform to verified frameworks
+        run: |
+          python scripts/verify_dependency_provenance.py \
+            --bind-platform "$HOME/.platformio/platforms/espressif32/platform.json" \
+            --firmware-package-dir "$RUNNER_TEMP/firmware-packages"
+
+      - name: Install verified firmware frameworks
+        run: |
+          pio pkg install --global --tool \
+            "$RUNNER_TEMP/firmware-packages/esp32-core-3.3.11.tar.xz" --force
+          pio pkg install --global --tool \
+            "$RUNNER_TEMP/firmware-packages/esp32-core-3.3.11-libs.tar.xz" --force
 
       # config.h is gitignored because it holds per-rig WiFi credentials
       # and the backend token. The example has placeholder values, which
@@ -89,6 +104,21 @@ jobs:
       - name: Build firmware
         working-directory: firmware
         run: pio run
+
+      - name: Build production firmware
+        working-directory: firmware
+        run: pio run -e w11-esp32s3-production
+
+      - name: Verify production SDK configuration
+        working-directory: firmware
+        run: |
+          config=sdkconfig.w11-esp32s3-production
+          grep -qx 'CONFIG_SECURE_BOOT_V2_ENABLED=y' "$config"
+          grep -qx 'CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y' "$config"
+          grep -qx 'CONFIG_SECURE_FLASH_ENC_ENABLED=y' "$config"
+          grep -qx 'CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE=y' "$config"
+          grep -qx 'CONFIG_SECURE_FLASH_ENCRYPTION_AES256=y' "$config"
+          grep -qx 'CONFIG_FLASH_ENCRYPTION_ENABLED=y' "$config"
 
   caddy-validate:
     name: Caddyfile validates

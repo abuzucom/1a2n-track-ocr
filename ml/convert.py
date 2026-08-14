@@ -2,48 +2,32 @@
 
 Uses real (not synthetic) character crops as the representative dataset
 for post-training quantization, then compares quantized vs. float
-accuracy on the same held-out samples: a large drop means the
-architecture or representative set needs revisiting before Phase 5,
-not something to defer.
+accuracy on a separate held-out real evaluation split: a large drop
+means the architecture or representative set needs revisiting before
+Phase 5, not something to defer.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
-import random
 
 import numpy as np
 import tensorflow as tf
-from PIL import Image
 
-import chars_dataset
-from charset import CHAR_TO_INDEX, PATCH_SIZE
+import dataset_splits
+from charset import PATCH_SIZE
+from model_validation import enforce_quality_gates, validate_tflite_model
 
 MODEL_INPUT_PATH = "model_output/ocr_model.keras"
 TFLITE_OUTPUT_PATH = "../firmware/models/ocr_model.tflite"
 REPRESENTATIVE_SAMPLE_SIZE = 200
 
 
-def load_real_dataset() -> tuple[tf.data.Dataset, int]:
-    labels = [entry for entry in chars_dataset.load_labels() if entry["source"] == "real"]
-    random.shuffle(labels)
-
-    paths = []
-    class_indices = []
-    for entry in labels:
-        char = entry["char"]
-        if char not in CHAR_TO_INDEX:
-            continue
-        image_path = chars_dataset.IMAGES_DIR / entry["image"]
-        if not image_path.is_file():
-            continue
-        paths.append(str(image_path))
-        class_indices.append(CHAR_TO_INDEX[char])
-        
-    paths = np.array(paths)
-    class_indices = np.array(class_indices, dtype=np.int32)
-    
+def build_dataset(samples: list[dataset_splits.Sample]) -> tf.data.Dataset:
+    """Build a TensorFlow dataset from validated samples."""
+    paths = np.array([str(sample.path) for sample in samples])
+    class_indices = np.array([sample.class_index for sample in samples], dtype=np.int32)
     dataset = tf.data.Dataset.from_tensor_slices((paths, class_indices))
 
     def load_image(path, label):
@@ -53,7 +37,24 @@ def load_real_dataset() -> tuple[tf.data.Dataset, int]:
         return image, label
 
     dataset = dataset.map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
-    return dataset, len(paths)
+    return dataset
+
+
+def load_real_dataset(
+    split: str | None = None,
+    samples: list[dataset_splits.Sample] | None = None,
+) -> tuple[tf.data.Dataset, int]:
+    """Return real samples, optionally limited to one deterministic split."""
+    if samples is None:
+        samples = dataset_splits.load_samples()
+    selected = [
+        sample
+        for sample in samples
+        if sample.source == "real" and (split is None or sample.split == split)
+    ]
+    if split == "evaluation":
+        dataset_splits.require_class_coverage(selected, split)
+    return build_dataset(selected), len(selected)
 
 
 def representative_dataset_gen(dataset: tf.data.Dataset):
@@ -93,34 +94,35 @@ def evaluate_tflite(tflite_model: bytes, dataset: tf.data.Dataset, count: int) -
 
 def run() -> None:
     model = tf.keras.models.load_model(MODEL_INPUT_PATH)
-    dataset, count = load_real_dataset()
-    if count == 0:
+    samples = dataset_splits.load_samples()
+    calibration_dataset, calibration_count = load_real_dataset("calibration", samples)
+    evaluation_dataset, evaluation_count = load_real_dataset("evaluation", samples)
+    if calibration_count == 0 or evaluation_count == 0:
         raise RuntimeError(
-            "no real character samples available for the representative "
-            "dataset; run prepare_chars.py against real captures first"
+            "real calibration and evaluation splits must both contain samples; "
+            "collect more reviewed captures"
         )
 
-    float_accuracy = evaluate_float(model, dataset)
+    float_accuracy = evaluate_float(model, evaluation_dataset)
     print(f"float model accuracy on real samples: {float_accuracy:.3f}")
 
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     # Wrap the generator in a no-arg callable as expected by TFLiteConverter
-    converter.representative_dataset = lambda: representative_dataset_gen(dataset)
+    converter.representative_dataset = lambda: representative_dataset_gen(calibration_dataset)
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
     converter.inference_input_type = tf.int8
     converter.inference_output_type = tf.int8
     tflite_model = converter.convert()
+    validate_tflite_model(tflite_model)
 
-    quantized_accuracy = evaluate_tflite(tflite_model, dataset, count)
+    quantized_accuracy = evaluate_tflite(
+        tflite_model,
+        evaluation_dataset,
+        evaluation_count,
+    )
     print(f"quantized model accuracy on real samples: {quantized_accuracy:.3f}")
-
-    drop = float_accuracy - quantized_accuracy
-    if drop > 0.05:
-        print(
-            f"WARNING: quantization dropped accuracy by {drop:.3f}, "
-            "review the representative dataset or architecture before Phase 5"
-        )
+    enforce_quality_gates(float_accuracy, quantized_accuracy)
 
     os.makedirs(os.path.dirname(TFLITE_OUTPUT_PATH), exist_ok=True)
     with open(TFLITE_OUTPUT_PATH, "wb") as handle:

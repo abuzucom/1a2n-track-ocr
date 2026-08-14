@@ -11,6 +11,15 @@ until 1.0.0.
 
 ### Added
 
+- `w11-esp32s3-production`, a compile-only Secure Boot V2 and AES-256
+  release-mode flash-encryption profile, plus a controlled signing and
+  provisioning guide.
+- `dependency-provenance.json`, recording immutable firmware source and
+  reviewed Caddy, Tesseract, and trained-data artifacts, plus a verifier
+  for firmware archives and deployed OCR files.
+- ML assurance tests for dataset containment, image limits, OCR
+  alignment, split isolation, class coverage, quality gates, and TFLite
+  model contracts.
 - `Caddyfile`: local HTTPS reverse proxy with security headers. Firmware
   reaches the backend only through it.
 - `.github/workflows/app-tests.yml`: backend tests, firmware build,
@@ -26,6 +35,12 @@ until 1.0.0.
 
 ### Changed
 
+- The PlatformIO platform is pinned to the release's Git commit instead
+  of its replaceable release archive URL. CI binds its framework packages
+  to downloaded archives that pass the reviewed SHA-256 digests.
+- ML training uses deterministic source-group splits. Real calibration
+  and evaluation samples are disjoint from training, and synthetic
+  samples never enter either production evaluation split.
 - Pinned GitHub Actions by commit SHA, `esp32-camera` by commit, and the
   Caddy CI image by digest. Tags are mutable.
 - `/frame` is a synchronous endpoint, so FastAPI runs its blocking
@@ -35,6 +50,19 @@ until 1.0.0.
 
 ### Fixed
 
+- ML dataset ingestion rejects unexpected names, traversal, symlinks,
+  oversized compressed or decoded images, unbounded label manifests,
+  duplicate samples crossing splits, and stalled Tesseract calls.
+- Character crops are saved only when Tesseract's complete box sequence
+  matches the expected track. Training fails on missing classes.
+- Conversion blocks low-accuracy or excessively degraded models and
+  validates the TFLite tensor contract before writing or embedding it.
+- Firmware verifies the TFLite FlatBuffer and exact tensor storage before
+  dereferencing model data.
+- Firmware bounds TLS, connection, read, retry, and backoff phases. A
+  supervisor restarts requests that exceed the complete upload deadline.
+  A failed `/frame` upload no longer commits the ROI hash, so the same
+  track retries on the next capture cycle.
 - Output is published under the state lock and written atomically.
   Concurrent updates could publish out of order, and a reader could
   observe a partially written file.

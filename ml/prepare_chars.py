@@ -13,7 +13,6 @@ dropped.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shutil
 from pathlib import Path
@@ -23,6 +22,7 @@ import pytesseract
 from PIL import Image
 
 import chars_dataset
+import dataset_io
 from charset import CHAR_TO_INDEX, PATCH_SIZE
 
 DATASET_DIR = Path(os.environ.get("DATASET_DIR", "dataset"))
@@ -49,13 +49,15 @@ def _resolve_tesseract_cmd() -> str:
 pytesseract.pytesseract.tesseract_cmd = _resolve_tesseract_cmd()
 
 CONFIDENCE_THRESHOLD = 60.0
+TESSERACT_TIMEOUT_SECONDS = 20
+
+
+class LabelAlignmentError(ValueError):
+    """Raised when Tesseract boxes do not match the expected track."""
 
 
 def load_track_labels() -> list[dict]:
-    if not LABELS_PATH.exists():
-        return []
-    with open(LABELS_PATH, "r", encoding="utf-8") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+    return dataset_io.load_bounded_jsonl(LABELS_PATH)
 
 
 def _otsu_threshold(gray: np.ndarray) -> int:
@@ -101,44 +103,89 @@ def _mean_word_confidence(image: Image.Image) -> float:
     with the image's mean word-level confidence from image_to_data
     instead of leaving it unset; every character from the same image
     gets this one value, not a true per-character score."""
-    data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+    data = pytesseract.image_to_data(
+        image,
+        output_type=pytesseract.Output.DICT,
+        timeout=TESSERACT_TIMEOUT_SECONDS,
+    )
     confidences = [float(c) for c in data["conf"] if float(c) >= 0]
     return sum(confidences) / len(confidences) if confidences else 0.0
 
 
-def extract_chars(image_path: Path, expected_len: int) -> tuple[list[tuple[str, Image.Image, float]], int]:
+def align_box_labels(expected_text: str, box_chars: list[str]) -> list[str]:
+    """Return expected labels after an exact, space-aware alignment."""
+    if not expected_text:
+        raise LabelAlignmentError("expected track is empty")
+    if any(char.isspace() and char != " " for char in expected_text):
+        raise LabelAlignmentError("expected track contains unsupported whitespace")
+    expected_chars = [char for char in expected_text if char != " "]
+    unsupported = [char for char in expected_chars if char not in CHAR_TO_INDEX]
+    if unsupported:
+        raise LabelAlignmentError(f"expected track contains unsupported characters: {unsupported!r}")
+    if box_chars != expected_chars:
+        raise LabelAlignmentError(
+            f"Tesseract box sequence {''.join(box_chars)!r} does not match expected "
+            f"track {''.join(expected_chars)!r}"
+        )
+    return expected_chars
+
+
+def extract_chars_from_image(
+    source_image: Image.Image,
+    expected_text: str | None,
+    expected_len: int | None = None,
+) -> tuple[list[tuple[str, Image.Image, float]], int]:
+    """Extract aligned character patches from one loaded track image."""
+    image = preprocess(source_image)
+    if expected_len is None:
+        expected_len = len(expected_text.replace(" ", "")) if expected_text is not None else 0
+    confidence = _mean_word_confidence(image)
+    if confidence < CONFIDENCE_THRESHOLD:
+        return [], expected_len
+
+    boxes = pytesseract.image_to_boxes(
+        image,
+        output_type=pytesseract.Output.DICT,
+        timeout=TESSERACT_TIMEOUT_SECONDS,
+    )
+    labels = boxes["char"]
+    if expected_text is not None:
+        labels = align_box_labels(expected_text, labels)
+    results = []
+    dropped = 0
+    for i, char in enumerate(labels):
+        if char not in CHAR_TO_INDEX:
+            dropped += 1
+            continue
+        left, right = boxes["left"][i], boxes["right"][i]
+        top = image.height - boxes["top"][i]
+        bottom = image.height - boxes["bottom"][i]
+        if right <= left or bottom <= top:
+            dropped += 1
+            continue
+        crop = image.crop((left, top, right, bottom)).resize((PATCH_SIZE, PATCH_SIZE))
+        results.append((char, crop, confidence))
+    return results, dropped
+
+
+def extract_chars(
+    image_path: Path,
+    expected_len: int,
+    *,
+    expected_text: str | None = None,
+) -> tuple[list[tuple[str, Image.Image, float]], int]:
     """Return ((char, cropped_patch, confidence) list, dropped_count).
 
     Boxes are dropped for not being a single in-charset character, for a
     zero-size box, or for the image's mean confidence falling below
     CONFIDENCE_THRESHOLD."""
-    image = preprocess(Image.open(image_path))
-    confidence = _mean_word_confidence(image)
-    if confidence < CONFIDENCE_THRESHOLD:
-        return [], expected_len
-
-    boxes = pytesseract.image_to_boxes(image, output_type=pytesseract.Output.DICT)
-
-    height = image.height
-
-    results = []
-    dropped = 0
-    for i, char in enumerate(boxes["char"]):
-        if char not in CHAR_TO_INDEX:
-            dropped += 1
-            continue
-        left, right = boxes["left"][i], boxes["right"][i]
-        # image_to_boxes returns Tesseract's raw box-file coordinates
-        # (origin at bottom-left); flip to top-left-origin pixel rows.
-        top = height - boxes["top"][i]
-        bottom = height - boxes["bottom"][i]
-        if right <= left or bottom <= top:
-            dropped += 1
-            continue
-        crop = image.crop((left, top, right, bottom))
-        crop = crop.resize((PATCH_SIZE, PATCH_SIZE))
-        results.append((char, crop, confidence))
-    return results, dropped
+    image = dataset_io.load_track_image(image_path)
+    try:
+        return extract_chars_from_image(image, expected_text, expected_len)
+    except RuntimeError as error:
+        if str(error) == "Tesseract process timeout":
+            raise RuntimeError(f"Tesseract timed out for {image_path.name}") from error
+        raise
 
 
 def run() -> None:
@@ -149,11 +196,21 @@ def run() -> None:
     entries = []
 
     for entry in track_labels:
-        image_path = IMAGES_DIR / entry["image"]
-        if not image_path.is_file():
+        image_path = dataset_io.resolve_track_image(IMAGES_DIR, entry.get("image"))
+        expected_text = entry.get("track")
+        if not isinstance(expected_text, str):
+            raise RuntimeError(f"track label is not text for {image_path.name}")
+        expected_len = len(expected_text.replace(" ", ""))
+        try:
+            chars, drop_count = extract_chars(
+                image_path,
+                expected_len,
+                expected_text=expected_text,
+            )
+        except LabelAlignmentError as error:
+            print(f"skipping {image_path.name}: {error}")
+            dropped += expected_len
             continue
-        expected_len = len(entry["track"])
-        chars, drop_count = extract_chars(image_path, expected_len)
         dropped += drop_count
         for char, patch, confidence in chars:
             dataset_entry = chars_dataset.save_char(
@@ -169,7 +226,7 @@ def run() -> None:
     chars_dataset.save_labels(entries)
 
     print(f"kept {kept} character crops (confidence >= {CONFIDENCE_THRESHOLD})")
-    print(f"dropped {dropped} boxes below the confidence threshold or out of charset")
+    print(f"dropped {dropped} boxes because of confidence, geometry, or label alignment")
 
 
 if __name__ == "__main__":

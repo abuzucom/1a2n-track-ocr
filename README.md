@@ -122,8 +122,11 @@ These locks were resolved on Windows and CPython 3.13 with no
 environment markers. Regenerate on Linux or macOS; TensorFlow resolves
 differently.
 
-Actions and `esp32-camera` are pinned by commit SHA, with the version in
-a trailing comment. Tags are mutable.
+Actions, the PlatformIO platform, and `esp32-camera` are pinned by commit
+SHA. `dependency-provenance.json` records the corresponding release
+archives and runtime artifact digests. CI verifies the mutable PlatformIO
+archive and binds verified Arduino archives into the pinned platform
+manifest before compiling.
 
 ### Backend
 
@@ -131,11 +134,17 @@ Needs the Tesseract OCR engine binary installed separately (system
 package manager, or the Windows installer). `server/ocr.py` finds it on
 PATH, or set `TESSERACT_CMD` to an explicit path.
 
-Tesseract is a system binary, so this repo cannot pin it. Its output is
-the training set's ground truth, so different engine or `traineddata`
-versions produce different labels from identical frames. Use Tesseract
-5.x, and pin the exact version in the deployment environment if labels
-must be comparable across machines.
+Tesseract is a system binary, so the package locks cannot install it.
+`dependency-provenance.json` records the approved Windows binary and
+English `traineddata` version and SHA-256 digests. Verify deployed files
+against that record before collecting comparable labels; another
+platform needs its own reviewed artifact entry.
+
+```powershell
+python scripts/verify_dependency_provenance.py `
+  --tesseract "C:\Program Files\Tesseract-OCR\tesseract.exe" `
+  --traineddata "C:\Program Files\Tesseract-OCR\tessdata\eng.traineddata"
+```
 
 Each rig needs its own credential. Set `BACKEND_TOKENS` to comma
 separated `player_id:token` pairs, each token matching that rig's
@@ -199,6 +208,13 @@ physical camera mount.
 cd firmware && pio run && pio run -t upload
 ```
 
+Production rigs use the compile-only `w11-esp32s3-production`
+environment, which enables Secure Boot V2 and AES-256 flash encryption
+in release mode. Provisioning burns irreversible eFuses and is not part
+of the normal PlatformIO upload path. Follow
+`docs/firmware_production.md` for signing, inspection, and the controlled
+provisioning boundary.
+
 ### Training the on-device model
 
 Only useful once `ml/dataset/` holds real captures from a running rig.
@@ -210,6 +226,13 @@ cd ml && pip install -r requirements.lock
 ```bash
 cd ml && python synth.py && python prepare_chars.py && python train.py && python convert.py
 ```
+
+Preparation rejects unexpected paths, oversized images, OCR timeouts,
+and box sequences that do not exactly match the expected track. Training
+uses deterministic source-group splits and requires every character
+class. Conversion keeps calibration separate from evaluation and will
+not replace the TFLite artifact unless both absolute accuracy and
+quantization-loss gates pass.
 
 Then embed the result and rebuild the firmware:
 
@@ -280,6 +303,8 @@ Without hardware:
   `config.h` first.
 - Run `pytest server/tests/` for the arbiter's agreement tracking, trust
   threshold, input bounds, and concurrency behavior.
+- Run `pytest ml/tests/` for dataset containment, split isolation, label
+  alignment, quality gates, and model-contract validation.
 - Run the policy checks in `scripts/`. CI runs these plus the backend
   tests, firmware build, and Caddyfile validation on every pull request.
 
