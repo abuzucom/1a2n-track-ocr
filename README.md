@@ -53,6 +53,10 @@ model from it, then flash for BLE and operate. A BLE rig has no
 Tesseract to fall back on, so it halts at boot rather than run without a
 usable model. See `docs/ble_transport.md`.
 
+A rig is powered over USB from the host machine. If WiFi proves
+unworkable in a venue, that cable is the intended fallback and would
+carry frames and results. It is not implemented.
+
 The diagram below shows the WiFi path, which exercises both OCR sources.
 On BLE, the right-hand branch does not exist: the on-device result goes
 straight to the arbiter over Bluetooth LE and publishes on its own.

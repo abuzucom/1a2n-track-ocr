@@ -146,12 +146,32 @@ jobs:
       # config.h is gitignored because it holds per-rig WiFi credentials
       # and the backend token. The example has placeholder values, which
       # is all a compile check needs.
+      #
+      # Building the example verbatim would only ever compile the
+      # transport it happens to default to, leaving every other transport
+      # unbuilt and free to break unnoticed. So the example's transport
+      # lines are dropped and one is appended per pass.
+      - name: Build every transport
+        working-directory: firmware
+        env:
+          TRANSPORTS: TRANSPORT_BLE TRANSPORT_WIFI
+        run: |
+          for transport in $TRANSPORTS; do
+            echo "::group::$transport"
+            grep -vF \
+              -e '#define TRANSPORT_BLE' \
+              -e '#define TRANSPORT_WIFI' \
+              src/config.h.example > src/config.h
+            echo "#define $transport" >> src/config.h
+            pio run
+            echo "::endgroup::"
+          done
+
+      # The production profile differs only in its secure-boot sdkconfig,
+      # which is transport independent, and rebuilding the SDK per
+      # transport is slow. One pass on the example's default is enough.
       - name: Provide a placeholder config.h
         run: cp firmware/src/config.h.example firmware/src/config.h
-
-      - name: Build firmware
-        working-directory: firmware
-        run: pio run
 
       - name: Build production firmware
         working-directory: firmware
