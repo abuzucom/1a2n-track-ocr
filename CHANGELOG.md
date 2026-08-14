@@ -56,6 +56,12 @@ until 1.0.0.
 
 ### Security
 
+- Each rig now needs its own credential. `BACKEND_TOKENS` maps
+  `player_id` to token, and a credential authorizes only its own
+  `player_id`, so a compromised rig cannot overwrite another deck's
+  output or poison its training data. The single `BACKEND_TOKEN` is
+  refused at startup with migration instructions rather than silently
+  kept working.
 - Capture endpoints require a bearer token (`BACKEND_TOKEN`), compared
   with `hmac.compare_digest`. The server refuses to start without one.
   `/static` and `/output` stay open; OBS cannot send a header.

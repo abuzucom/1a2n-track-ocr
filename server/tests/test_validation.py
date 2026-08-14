@@ -14,7 +14,8 @@ AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 @pytest.fixture
 def sandbox(tmp_path, monkeypatch):
-    monkeypatch.setenv("BACKEND_TOKEN", TOKEN)
+    monkeypatch.setenv("BACKEND_TOKENS", f"deck1:{TOKEN}")
+    monkeypatch.delenv("BACKEND_TOKEN", raising=False)
     monkeypatch.setenv("OUTPUT_DIR", str(tmp_path / "output"))
     monkeypatch.setenv("DATASET_DIR", str(tmp_path / "dataset"))
     monkeypatch.chdir(Path(__file__).resolve().parent.parent)
