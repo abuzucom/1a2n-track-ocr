@@ -48,9 +48,11 @@ until 1.0.0.
 - `Caddyfile`: local HTTPS reverse proxy with security headers. Firmware
   reaches the backend only through it.
 - `.github/workflows/app-tests.yml`: backend tests, firmware build,
-  manifest and lock agreement, and `caddy validate` in CI. The firmware
-  job runs only when a pull request or push changes firmware or its build
-  inputs.
+  manifest and lock agreement, and `caddy validate` in CI. Application
+  checks run only for relevant paths. Firmware waits until review-ready
+  and restores an incremental build cache on later runs.
+- `scripts/detect_app_changes.py`: classifies changed paths for the
+  application CI gate.
 - `scripts/check_lock_sync.py`: blocks when a requirements manifest and
   its compiled lock disagree.
 - `scripts/sync.py` and the eight tool-specific copies of `AGENTS.md` it
@@ -77,6 +79,9 @@ until 1.0.0.
   samples never enter either production evaluation split.
 - Pinned GitHub Actions by commit SHA, `esp32-camera` by commit, and the
   Caddy CI image by digest. Tags are mutable.
+- CI cancels superseded pull request runs and fails jobs after 30 minutes.
+  Workflows no longer duplicate successful pull request checks after
+  merge.
 - `/frame` is a synchronous endpoint, so FastAPI runs its blocking
   Tesseract call in a threadpool rather than on the event loop.
 - uvicorn binds to loopback. Caddy is the only entry point.
