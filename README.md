@@ -178,9 +178,10 @@ against that record before collecting comparable labels; another
 platform needs its own reviewed artifact entry.
 
 ```powershell
+$tesseractRoot = "C:\Program Files\Tesseract-OCR"
 python scripts/verify_dependency_provenance.py `
-  --tesseract "C:\Program Files\Tesseract-OCR\tesseract.exe" `
-  --traineddata "C:\Program Files\Tesseract-OCR\tessdata\eng.traineddata"
+  --tesseract "$tesseractRoot\tesseract.exe" `
+  --traineddata "$tesseractRoot\tessdata\eng.traineddata"
 ```
 
 Each rig needs its own credential. Set `BACKEND_TOKENS` to comma
@@ -209,7 +210,13 @@ install `requirements-ble.lock` first. `BLE_MAX_DEVICES` caps concurrent
 rigs, default 4.
 
 ```bash
-cd server && pip install -r requirements-ble.lock && BACKEND_TOKENS=deck1:<token1> BLE_ENABLED=1 uvicorn app:app --host 127.0.0.1 --port 8000
+cd server
+pip install -r requirements-ble.lock
+export BACKEND_TOKENS=deck1:<token1>
+export BLE_ENABLED=1
+uvicorn app:app \
+  --host 127.0.0.1 \
+  --port 8000
 ```
 
 The bridge runs inside the uvicorn process rather than as its own
