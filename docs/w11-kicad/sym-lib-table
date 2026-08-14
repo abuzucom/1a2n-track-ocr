@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "W11")(type "KiCad")(uri "${KIPRJMOD}/w11.kicad_sym")(options "")(descr "W11 PDF reconstruction symbols"))
+)

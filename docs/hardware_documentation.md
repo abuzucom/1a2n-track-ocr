@@ -8,6 +8,7 @@ camera) used by this project. Sourced from the FCC filing for FCC ID
 
 | File | Source | What it is |
 |---|---|---|
+| `w11-kicad/` | Reconstructed from both vendor schematic PDFs | Editable KiCad 10 project with the visible components and named nets, plus a KiCad-generated PDF plot, grouped BOM, and clean ERC validation. See `w11-kicad/README.md` for limits. |
 | `W11-mainboard-schematic-v0.1.pdf` | Vendor schematic (rev v0.1, dated 2025-10-16) | Schematic of the W11 mini module mainboard: ESP32-S3R8 MCU, SPI flash, crystal, antenna matching network, USB, boot/reset buttons, RGB LED, test points, board-to-board connectors. |
 | `W11-expansion-board-schematic.pdf` | Vendor schematic ("W11 ESP32S3 Exp. v0.1", rev 0.1, dated 2025-11-23, designer Linus.Liao) | Schematic of the W11 expansion/carrier board: camera connector and power (LDO chain), SD card slot, PDM microphone, board-to-board connector pinout to the mainboard. |
 | `W11-fcc-external-photos-dimensions.pdf` | FCC filing, FCC ID 2BRTY-W11-V02 ("External Photos") | Photographs of the assembled module's exterior. |

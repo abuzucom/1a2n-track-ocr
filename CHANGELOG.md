@@ -11,6 +11,9 @@ until 1.0.0.
 
 ### Added
 
+- An editable KiCad 10 reconstruction of the W11 mainboard and expansion
+  board schematics, with a KiCad-generated PDF plot, grouped BOM, source
+  table, and clean ERC validation.
 - Bluetooth LE transport, now the default firmware build. A rig sends
   on-device OCR results to a server on Windows or macOS with no network
   in the path. Results only: BLE does not carry ROI frames, so a BLE rig
