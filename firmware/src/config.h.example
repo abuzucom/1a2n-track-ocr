@@ -26,33 +26,23 @@
 // reverse proxy (see Caddyfile), never directly to uvicorn.
 #define BACKEND_URL "https://192.168.1.50"
 
-// Root CA certificate, PEM format, that signed the Caddyfile's TLS
-// certificate. Caddy's "tls internal" directive generates a local CA the
-// first time it runs; find its root certificate at:
+// Root CA that signed the Caddyfile's TLS certificate. Caddy's
+// "tls internal" generates one on first run:
 //   Linux:   ~/.local/share/caddy/pki/authorities/local/root.crt
 //   macOS:   ~/Library/Application Support/Caddy/pki/authorities/local/root.crt
 //   Windows: %AppData%\Caddy\pki\authorities\local\root.crt
-// Paste its contents below, replacing the placeholder, preserving the
-// BEGIN/END lines. This pins the firmware to that specific local CA:
-// uploadFrame/uploadResult verify the backend's certificate against it
-// rather than skipping verification, so a device impersonating the
-// backend on the same network is rejected instead of trusted. See
-// SECURITY.md.
+// Paste its contents below, keeping the BEGIN and END lines. The
+// firmware verifies the backend against this CA, so a host impersonating
+// it is rejected. See SECURITY.md.
 #define BACKEND_CA_CERT R"EOF(
 -----BEGIN CERTIFICATE-----
 REPLACE THIS WITH YOUR CADDY LOCAL CA'S root.crt CONTENTS
 -----END CERTIFICATE-----
 )EOF"
 
-// Shared secret proving this rig is allowed to post captures. Must match
-// the BACKEND_TOKEN environment variable the backend runs with, or every
-// upload is rejected with 401. Generate a long random value; this is a
-// secret, and config.h is gitignored for exactly this reason.
-//
-// Travels over HTTPS to a backend whose certificate is verified against
-// BACKEND_CA_CERT above, so this protects against both eavesdropping and
-// a rogue host on the same network impersonating the backend. See
-// SECURITY.md.
+// Shared secret authorizing this rig to post captures. Must match the
+// backend's BACKEND_TOKEN environment variable, or uploads return 401.
+// Use a long random value. config.h is gitignored; never commit it.
 #define BACKEND_TOKEN "change-me-to-a-long-random-value"
 
 // Identifies this rig to the backend. One physical camera pointed at

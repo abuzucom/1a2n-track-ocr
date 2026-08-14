@@ -96,14 +96,9 @@ def update(player_id: str, track: str, source: str, confidence: Optional[float] 
             "confidence": confidence,
         }
 
-        # Publish while still holding the lock. Snapshotting here and
-        # writing after releasing let two updates race: both captured a
-        # snapshot, then whichever reached the disk last won, so an
-        # older snapshot could overwrite a newer one and leave stale
-        # output published until the next change.
-        #
-        # The files are small and the writes are a rename, so the extra
-        # time under the lock is not worth trading correctness for.
+        # Publish under the lock. Releasing it before writing lets two
+        # updates reach the disk out of order, so an older snapshot can
+        # overwrite a newer one. The write is a rename; the hold is cheap.
         _write_text(player_id, track, len(_state))
         _write_json(dict(_state))
         return True

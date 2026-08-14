@@ -13,11 +13,9 @@ import numpy as np
 import pytesseract
 from PIL import Image
 
-# The ROI crop is one line of text from a VGA frame, so the real input
-# is on the order of 480x40. This budget leaves generous headroom while
-# keeping the worst case small: the pipeline upscales 3x, multiplying
-# pixel count ninefold, so 2 Mpx here is an 18 Mpx grayscale array.
-# The previous 4096 per-side limit permitted a 144 MiB array instead.
+# The ROI crop is one line of text, on the order of 480x40, so this
+# leaves ample headroom. The pipeline upscales 3x, multiplying pixel
+# count ninefold, so 2 Mpx caps the worst case at an 18 Mpx array.
 MAX_IMAGE_PIXELS = 2_000_000
 MAX_IMAGE_DIMENSION = 4096
 
@@ -25,9 +23,8 @@ MAX_IMAGE_DIMENSION = 4096
 # deadline a pathological image blocks a worker indefinitely.
 TESSERACT_TIMEOUT_SECONDS = 20
 
-# OCR is CPU bound and each call spawns a subprocess. FastAPI runs sync
-# endpoints in a threadpool, so without a bound every concurrent request
-# gets its own Tesseract process and they contend to a standstill.
+# Each call spawns a subprocess, and FastAPI runs sync endpoints in a
+# threadpool, so without a bound concurrent requests contend for CPU.
 MAX_CONCURRENT_OCR = 2
 _ocr_slots = threading.Semaphore(MAX_CONCURRENT_OCR)
 
