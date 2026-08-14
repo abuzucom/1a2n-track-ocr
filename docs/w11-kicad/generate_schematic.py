@@ -97,10 +97,16 @@ def load_parts() -> list[Part]:
     return parts
 
 
-def effects(size: float = 1.27, *, hidden: bool = False) -> str:
+def effects(
+    size: float = 1.27,
+    *,
+    hidden: bool = False,
+    justify: str | None = None,
+) -> str:
     """Return standard KiCad text effects."""
     hide = "\n\t\t\t(hide yes)" if hidden else ""
-    return f"(effects\n\t\t\t(font (size {size} {size})){hide}\n\t\t)"
+    justification = f"\n\t\t\t(justify {justify})" if justify else ""
+    return f"(effects\n\t\t\t(font (size {size} {size})){hide}{justification}\n\t\t)"
 
 
 def library_property(name: str, value: str, x: float, y: float, hidden: bool = False) -> str:
@@ -240,7 +246,7 @@ def pin_connections(part: Part, x: float, y: float) -> list[str]:
                     "\t\t(shape passive)",
                     f"\t\t(at {coordinate(pin_x)} {coordinate(pin_y)} 180)",
                     "\t\t(fields_autoplaced yes)",
-                    f"\t\t{effects(0.8)}",
+                    f"\t\t{effects(0.8, justify='right')}",
                     f'\t\t(uuid "{make_uuid(key)}")',
                     '\t\t(property "Intersheetrefs" "${INTERSHEET_REFS}"',
                     f"\t\t\t(at {coordinate(pin_x)} {coordinate(pin_y)} 0)",

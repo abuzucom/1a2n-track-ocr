@@ -7,8 +7,8 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 GENERATOR_PATH = REPOSITORY_ROOT / "docs" / "w11-kicad" / "generate_schematic.py"
 
 
-def test_generated_schematic_has_release_title_block() -> None:
-    """Require the documented title, SemVer revision, and issue date."""
+def test_generated_schematic_has_metadata_and_clear_labels() -> None:
+    """Require document metadata and outward-facing global labels."""
     module_spec = importlib.util.spec_from_file_location("w11_schematic_generator", GENERATOR_PATH)
     assert module_spec is not None
     assert module_spec.loader is not None
@@ -24,3 +24,7 @@ def test_generated_schematic_has_release_title_block() -> None:
     assert '(title "1A2N-OCR")' in schematic
     assert '(date "2026-08-14")' in schematic
     assert '(rev "0.1.0")' in schematic
+
+    label_count = schematic.count("\t(global_label ")
+    assert label_count > 0
+    assert schematic.count("\t\t\t(justify right)") == label_count

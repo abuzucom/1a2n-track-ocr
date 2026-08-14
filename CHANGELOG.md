@@ -101,6 +101,8 @@ until 1.0.0.
 
 ### Fixed
 
+- Generated schematic net labels now face away from component bodies, so
+  their text, frames, and connected symbols do not overlap.
 - ML dataset ingestion rejects unexpected names, traversal, symlinks,
   oversized compressed or decoded images, unbounded label manifests,
   duplicate samples crossing splits, and stalled Tesseract calls.
