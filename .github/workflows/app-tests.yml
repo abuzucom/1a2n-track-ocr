@@ -32,12 +32,13 @@ jobs:
       - name: Check firmware paths
         id: firmware
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DIFF_SEPARATOR: ${{ github.event_name == 'pull_request' && '...' || '..' }}
+          ZERO_SHA: "0000000000000000000000000000000000000000"
         run: |
-          if [ "$EVENT_NAME" != "pull_request" ]; then
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "$ZERO_SHA" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BASE_SHA"...HEAD -- \
+          elif git diff --quiet "${BASE_SHA}${DIFF_SEPARATOR}HEAD" -- \
             firmware \
             dependency-provenance.json \
             scripts/verify_dependency_provenance.py \
