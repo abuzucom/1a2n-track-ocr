@@ -18,10 +18,10 @@ end rather than guessing.
 - The W11 ESP32-S3 board with its camera attached.
 - A USB **data** cable, not a charge-only cable. The two look identical.
   A charge-only cable lets the board power on but never lets your computer
-  talk to it, which looks like a broken board when it is really just the
-  wrong cable. If step 8 below cannot find the board, try a different cable
-  before anything else.
-- A computer you personally have full install rights on. Installing
+  talk to it, which looks like a broken board when it is the wrong cable.
+  If step 8 below cannot find the board, try a different cable before
+  anything else.
+- A computer you have full install rights on. Installing
   software and reaching a USB serial port both need normal admin
   permissions; a locked-down work or school laptop will likely block one of
   the steps below with no clear reason why.
@@ -34,8 +34,7 @@ end rather than guessing.
 - Your WiFi network's name and password (a 2.4GHz network; see step 7).
 
 By the end of this guide you will have a rig that watches the XDJ's screen
-and records what it sees, ready to send off so a trained model can be built
-from it.
+and records what it sees, ready to send off for training.
 
 ## 2. Install the tools on your computer
 
@@ -62,9 +61,8 @@ pip install platformio
 - Linux (Debian or Ubuntu): `sudo apt install tesseract-ocr`
 - macOS: `brew install tesseract` (needs Homebrew, from
   [brew.sh](https://brew.sh), installed first)
-- Windows: download and run the installer from Tesseract's official
-  Windows build maintainer, UB Mannheim, linked from the project's own
-  install notes. Install to the default location.
+- Windows: download and run the installer from UB Mannheim's Tesseract
+  Windows build page. Install to the default location.
 
 **Caddy**, the local HTTPS server the rig talks to:
 - Linux (Debian or Ubuntu):
@@ -81,8 +79,8 @@ pip install platformio
 - Windows: if you have Chocolatey, `choco install caddy`. If you have
   Scoop, `scoop install caddy` instead. If you have neither, download the
   static binary from caddyserver.com's Download page and place it
-  somewhere on your PATH; installing a whole package manager just for this
-  one tool is not worth it.
+  somewhere on your PATH; installing a whole package manager for this one
+  tool is not worth it.
 
 ## 3. Get the code
 
@@ -164,8 +162,8 @@ running Caddy, on your local network:
 - Linux: run `hostname -I` and read the address shown.
 
 Write this down; it looks like `192.168.1.50`. It can change later if your
-router reassigns it, which is worth remembering if things stop working
-after a few days; see the troubleshooting table.
+router reassigns it. See the troubleshooting table if things stop working
+after a few days.
 
 **Your WiFi network must be 2.4GHz.** The board's WiFi radio does not
 support 5GHz at all. Many home routers today broadcast two networks, one
@@ -296,8 +294,9 @@ same time.
 
 ## 10. Test it
 
-With Caddy, the backend, and the flashed rig all running, and the camera
-aimed at the XDJ's Normal playback screen, change the track on the unit.
+Confirm Caddy, the backend, and the flashed rig are all running, and the
+camera is aimed at the XDJ's Normal playback screen. Change the track on
+the unit.
 
 Wait. The rig only samples the screen every 20 seconds by default, so
 check back after at least that long, not immediately.
@@ -342,10 +341,9 @@ you are very unlikely to reach in a normal session.
 
 Stop the backend (`Ctrl+C` in its terminal window). Find the `ml/dataset`
 folder at the root of the project; it contains an `images` folder and a
-`labels.jsonl` file. Zip that `ml/dataset` folder into a single file, and
-send it to the maintainer through whatever channel you have arranged
-together. This project does not define a specific upload method; use
-whatever you have agreed on.
+`labels.jsonl` file. Zip that folder into a single file and send it to the
+maintainer through whatever channel you have arranged; this project does
+not define one.
 
 Training happens on the maintainer's side after that, not on your
 computer, unless you choose the optional section at the end of this guide.
@@ -420,8 +418,8 @@ reference, including its own troubleshooting table.
 
 ## Optional: train it yourself
 
-Most readers should skip this and use step 13 instead. This is for someone
-who wants to attempt training locally rather than sending the dataset off.
+Most readers should skip this and use step 13 instead. This is for training
+locally rather than sending the dataset off.
 
 ```
 cd ml
@@ -457,7 +455,7 @@ onward, skipping part (a) since you already have the file in place.
 
 Send the maintainer: which numbered step you were on, the exact error
 message or a screenshot, and your operating system. That is usually enough
-to diagnose remotely without a lot of back and forth.
+to diagnose remotely.
 
 ## Troubleshooting
 
