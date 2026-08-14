@@ -17,16 +17,41 @@
 #define ROI_WIDTH 480
 #define ROI_HEIGHT 40
 
-// WiFi credentials for this rig.
+// How this rig reaches the backend. Define exactly one.
+//
+//   TRANSPORT_BLE:  Bluetooth LE to a server on the paired host. Needs
+//                   no network, so it is the normal choice for a booth.
+//                   Sends on-device OCR results only, which means it
+//                   requires a real model in ocr_model.h; a rig built
+//                   this way with the placeholder model has nothing to
+//                   send and halts at boot.
+//   TRANSPORT_WIFI: HTTPS through Caddy. Uploads ROI frames, so this is
+//                   the transport that collects and labels the training
+//                   data the on-device model is built from. Use it on a
+//                   trusted network to gather a dataset, or when you
+//                   want Tesseract arbitration running live.
+//
+// The usual order is to run on WiFi first to produce a model, then
+// flash for BLE to operate. See docs/ble_transport.md.
+#define TRANSPORT_BLE
+// #define TRANSPORT_WIFI
+
+// BLE only. Six digit passkey for LE Secure Connections pairing,
+// entered on the host the first time it pairs. Use a random value;
+// config.h is gitignored, so this never leaves the rig.
+#define BLE_PASSKEY 123456
+
+// WiFi only. Credentials for this rig.
 #define WIFI_SSID "your-ssid"
 #define WIFI_PASSWORD "your-password"
 
-// Backend base URL, no trailing slash, e.g. "https://192.168.1.50".
+// WiFi only. Backend base URL, no trailing slash, e.g.
+// "https://192.168.1.50".
 // Must be https://; the firmware always connects through the Caddy
 // reverse proxy (see Caddyfile), never directly to uvicorn.
 #define BACKEND_URL "https://192.168.1.50"
 
-// Root CA that signed the Caddyfile's TLS certificate. Caddy's
+// WiFi only. Root CA that signed the Caddyfile's TLS certificate. Caddy's
 // "tls internal" generates one on first run:
 //   Linux:   ~/.local/share/caddy/pki/authorities/local/root.crt
 //   macOS:   ~/Library/Application Support/Caddy/pki/authorities/local/root.crt
@@ -40,8 +65,9 @@ REPLACE THIS WITH YOUR CADDY LOCAL CA'S root.crt CONTENTS
 -----END CERTIFICATE-----
 )EOF"
 
-// Shared secret authorizing this rig to post captures. Must match the
-// backend's BACKEND_TOKEN environment variable, or uploads return 401.
+// Shared secret authorizing this rig to post captures, on both
+// transports. Must be the token paired with this rig's PLAYER_ID in the
+// backend's BACKEND_TOKENS environment variable, or uploads return 401.
 // Use a long random value. config.h is gitignored; never commit it.
 #define BACKEND_TOKEN "change-me-to-a-long-random-value"
 

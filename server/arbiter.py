@@ -1,15 +1,25 @@
 """Compares on-device and Tesseract OCR results for the same capture,
 decides which one feeds sinks.py, and tracks on-device agreement.
 
-Firmware always uploads a frame to /frame; it only ever adds a /result
-call afterward, and only when a model is loaded and ready. So Tesseract
-is the default-trusted source: /frame writes to sinks on every capture
-that clears the confidence bar. A /result call, when it comes, is a
-delayed comparison signal keyed on the same capture_id as the frame it
-was derived from. It does not write to sinks unless the on-device
-model's recent agreement rate with Tesseract has crossed
-TRUST_THRESHOLD, per the plan's "default to Tesseract until on-device
-agreement is consistently high."
+Which of the two modes below applies depends on the rig's transport.
+
+Comparison mode, the WiFi transport. Firmware uploads a frame to
+/frame; it only ever adds a /result call afterward, and only when a
+model is loaded and ready. So Tesseract is the default-trusted source:
+/frame writes to sinks on every capture that clears the confidence bar.
+A /result call, when it comes, is a delayed comparison signal keyed on
+the same capture_id as the frame it was derived from. It does not write
+to sinks unless the on-device model's recent agreement rate with
+Tesseract has crossed TRUST_THRESHOLD, per the plan's "default to
+Tesseract until on-device agreement is consistently high."
+
+Sole-source mode, the BLE transport. BLE carries results only, never
+frames, so Tesseract never runs and nothing is ever pending to compare
+against. The on-device model is the only source there, and callers say
+so with record_ondevice(..., sole_source=True). The confidence gates
+still apply; only the comparison does not, because there is nothing to
+compare with. Trust is the operator's decision at flash time, not
+something the arbiter can measure.
 
 An empty track from either OCR path means the ROI's text was not
 found (e.g. the unit is on the Performance screen, which does not show
@@ -113,19 +123,17 @@ def is_trusted(player_id: str) -> bool:
         return sum(history) / len(history) >= TRUST_THRESHOLD
 
 
-def record_ondevice(
-    player_id: str, capture_id: str, track: str, confidence: Optional[float] = None
-) -> Optional[bool]:
-    """Handle a /result result. Compares against the cached Tesseract
-    result for the same capture_id, if still pending. Returns whether
-    they agreed, or None if there was nothing to compare against (no
-    matching Tesseract result cached, an empty on-device track, or a
-    confidence below ONDEVICE_CONFIDENCE_THRESHOLD). Writes to sinks
-    only once the on-device model is trusted for player_id."""
-    stripped = track.strip()
-    if not stripped:
+def _ondevice_read_is_usable(
+    player_id: str, capture_id: str, track: str, confidence: Optional[float]
+) -> bool:
+    """True if an on-device read clears the empty and confidence gates.
+
+    Applies in both modes: sole-source drops the comparison, not the
+    quality bar.
+    """
+    if not track.strip():
         logger.info("on-device: no track text found for %s/%s", player_id, capture_id)
-        return None
+        return False
 
     # Fail closed. This previously read "confidence is not None and
     # confidence < THRESHOLD", so omitting the field from the request
@@ -135,13 +143,40 @@ def record_ondevice(
         logger.info(
             "on-device: rejecting result with no confidence for %s/%s", player_id, capture_id
         )
-        return None
+        return False
 
     if confidence < ONDEVICE_CONFIDENCE_THRESHOLD:
         logger.info(
             "on-device: rejecting low-confidence read for %s/%s (%.2f < %.2f): %r",
             player_id, capture_id, confidence, ONDEVICE_CONFIDENCE_THRESHOLD, track,
         )
+        return False
+
+    return True
+
+
+def record_ondevice(
+    player_id: str, capture_id: str, track: str, confidence: Optional[float] = None,
+    *, sole_source: bool = False,
+) -> Optional[bool]:
+    """Handle an on-device result. Compares against the cached Tesseract
+    result for the same capture_id, if still pending. Returns whether
+    they agreed, or None if there was nothing to compare against (no
+    matching Tesseract result cached, an empty on-device track, or a
+    confidence below ONDEVICE_CONFIDENCE_THRESHOLD). Writes to sinks
+    only once the on-device model is trusted for player_id.
+
+    Set sole_source when the caller's transport carries no frames, so
+    Tesseract never runs for this capture: the read publishes on its own
+    once it clears the gates, and always returns None, since agreement
+    is undefined with one source. See the module docstring. The default
+    is the comparison behavior, so /result is unaffected.
+    """
+    if not _ondevice_read_is_usable(player_id, capture_id, track, confidence):
+        return None
+
+    if sole_source:
+        sinks.update(player_id, track, source="ondevice", confidence=confidence)
         return None
 
     key = (player_id, capture_id)

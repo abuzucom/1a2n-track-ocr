@@ -35,9 +35,27 @@ camera) used by this project. Sourced from the FCC filing for FCC ID
 - **USB:** direct VBUS/D+/D-/GND breakout on connector J3 on the mainboard
 - **Board-to-board connectors:** mainboard uses a DF40C-30DP-0.4V(51) connector (J2/J-series), mates with the expansion board's DF40HC(3.0)-30DS-0.4V(51) connector (JA3)
 
+### Radios
+
+The ESP32-S3R8 supports 2.4GHz Wi-Fi 802.11b/g/n and Bluetooth 5 (LE)
+(`ESP32-S3-series-datasheet-v2.2.pdf`). The manufacturer's product
+specification documents Wi-Fi only. That is a gap in the vendor document,
+not a limitation of the module.
+
+Both radios share the single antenna feed described above, so they contend
+for one front end. The antenna is specified for Wi-Fi, which is a labeling
+choice rather than an electrical limit: Wi-Fi occupies 2400 to 2483.5MHz
+and Bluetooth LE occupies 2402 to 2480MHz, so BLE falls entirely inside
+the band the antenna and its matching network are already tuned for. BLE
+also uses 1 to 2MHz channels against 802.11's 20MHz, so it tolerates a
+weaker signal.
+
+The firmware selects one radio at build time; it does not run both. See
+`docs/ble_transport.md`.
+
 ### Mainboard, from the official product specification
 
-- **Wireless:** Wi-Fi 802.11b/g/n only (2.4GHz, up to 150Mbps), Station/SoftAP/Station+SoftAP modes, WPA3/WPA2-PSK. No Bluetooth listed anywhere in this document; see "Open questions" below.
+- **Wireless:** Wi-Fi 802.11b/g/n (2.4GHz, up to 150Mbps), Station/SoftAP/Station+SoftAP modes, WPA3/WPA2-PSK. This document covers Wi-Fi only and does not describe the chip's Bluetooth 5 (LE) support; for that see the Espressif datasheet and "Radios" below.
 - **Sensors, standard on-board:** temperature sensor (+/-0.1C, -40C to 125C), inertial sensor (accelerometer +/-2g to 16g, gyroscope +/-16 to +/-2048 deg/s), wired via GPIO4 (SCL), GPIO5 (SDA), GPIO6 (INT)
 - **Battery voltage monitor:** GPIO2 (ADC)
 - **Debug test point pin mapping:** TP1 GND, TP2 EN/CHIP_PU, TP3 MTDO/GPIO40, TP4 MTDI/GPIO41, TP5 MTCK/GPIO39, TP6 MTMS/GPIO42, TP7 TX0/GPIO43, TP8 RX0/GPIO44, TP9 USB D+/GPIO20, TP10 USB D-/GPIO19
@@ -72,13 +90,6 @@ the physical antenna.
   and the FCC teardown both describe an on-board FPC antenna on an IPEX-1
   connector. Use the product specification and FCC filing for the antenna
   connector/type.
-- **Bluetooth, wiki vs. datasheet:** the Meshnology wiki page describes a
-  "Dedicated WiFi/BT Antenna Connector." The manufacturer's product
-  specification (`ESP32-S3-Mini-Module-product-specification-v0.1.8.pdf`,
-  section 2.1.3) lists only Wi-Fi 802.11b/g/n and does not mention
-  Bluetooth. Espressif's `ESP32-S3-series-datasheet-v2.2.pdf` confirms
-  the ESP32-S3R8 chip supports Bluetooth 5 (LE) at the silicon level.
-  Treat BLE as unconfirmed at the module/firmware level until tested.
 
 ## Additional specs, from the Meshnology wiki page
 

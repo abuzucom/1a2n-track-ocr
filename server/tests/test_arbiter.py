@@ -133,3 +133,49 @@ def test_missing_confidence_fails_closed(reset_arbiter_state):
     assert arbiter.record_ondevice("deck1", "100", "Artist - Title", None) is None
     assert reset_arbiter_state == []
     assert "deck1" not in arbiter._agreement_history
+
+
+def test_sole_source_publishes_without_a_tesseract_result(reset_arbiter_state):
+    """On BLE there is no /frame call, so nothing is ever pending.
+
+    Without this mode the on-device model can never publish: it needs a
+    cached Tesseract result to compare against, and a full agreement
+    window to earn trust. A BLE rig would run silently forever.
+    """
+    result = arbiter.record_ondevice(
+        "deck1", "100", "Artist - Title", 0.9, sole_source=True
+    )
+    assert result is None
+    assert reset_arbiter_state == [("deck1", "Artist - Title", "ondevice", 0.9)]
+
+
+def test_sole_source_does_not_change_the_default_path(reset_arbiter_state):
+    """The default stays comparison-only, so /result is unaffected."""
+    assert arbiter.record_ondevice("deck1", "100", "Artist - Title", 0.9) is None
+    assert reset_arbiter_state == []
+
+
+def test_sole_source_still_rejects_empty_and_low_confidence(reset_arbiter_state):
+    assert arbiter.record_ondevice("deck1", "1", "  ", 0.9, sole_source=True) is None
+    assert arbiter.record_ondevice("deck1", "2", "Track", None, sole_source=True) is None
+    assert arbiter.record_ondevice(
+        "deck1", "3", "Track",
+        arbiter.ONDEVICE_CONFIDENCE_THRESHOLD - 0.1, sole_source=True,
+    ) is None
+    assert reset_arbiter_state == []
+
+
+def test_sole_source_does_not_touch_agreement_history(reset_arbiter_state):
+    """There is nothing to agree with, so scoring would be meaningless."""
+    for i in range(arbiter.AGREEMENT_WINDOW_SIZE + 5):
+        arbiter.record_ondevice("deck1", str(i), f"Track {i}", 0.9, sole_source=True)
+
+    assert "deck1" not in arbiter._agreement_history
+    assert arbiter.is_trusted("deck1") is False
+
+
+def test_sole_source_does_not_consume_a_pending_tesseract_result(reset_arbiter_state):
+    """A mixed deployment must not let a BLE rig eat a WiFi rig's cache entry."""
+    arbiter.record_tesseract("deck1", "100", "Artist - Title", 90.0)
+    arbiter.record_ondevice("deck1", "100", "Artist - Title", 0.9, sole_source=True)
+    assert ("deck1", "100") in arbiter._pending_tesseract
