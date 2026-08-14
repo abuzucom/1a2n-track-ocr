@@ -11,46 +11,63 @@ name: app-tests
 
 on:
   pull_request:
-  push:
-    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: app-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  detect-firmware-changes:
-    name: Detect firmware changes
+  application-gate:
+    name: Application gate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
-      firmware: ${{ steps.firmware.outputs.changed }}
+      backend: ${{ steps.changes.outputs.backend }}
+      caddy: ${{ steps.changes.outputs.caddy }}
+      firmware: ${{ steps.changes.outputs.firmware }}
+      lock: ${{ steps.changes.outputs.lock }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Check firmware paths
-        id: firmware
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Detect application changes
+        id: changes
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          DIFF_SEPARATOR: ${{ github.event_name == 'pull_request' && '...' || '..' }}
-          ZERO_SHA: "0000000000000000000000000000000000000000"
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "$ZERO_SHA" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "${BASE_SHA}${DIFF_SEPARATOR}HEAD" -- \
-            firmware \
-            dependency-provenance.json \
-            scripts/verify_dependency_provenance.py \
-            .github/workflows/app-tests.yml; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+          python scripts/detect_app_changes.py \
+            --base "$BASE_SHA" --head HEAD >> "$GITHUB_OUTPUT"
+
+      - name: Check every manifest against its lock
+        if: steps.changes.outputs.lock == 'true'
+        run: python scripts/check_lock_sync.py
+
+      # Pinned by digest, not by tag: a tag, including a patch tag, can
+      # be repushed by whoever controls the image. Digest is caddy
+      # 2.11.4-alpine.
+      - name: Validate Caddyfile
+        if: steps.changes.outputs.caddy == 'true'
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w \
+            caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 \
+            caddy validate --config Caddyfile
 
   backend-tests:
     name: Backend tests
+    needs: application-gate
+    if: needs.application-gate.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -71,26 +88,14 @@ jobs:
         working-directory: ml
         run: python -m pytest tests/ -v
 
-  lock-consistency:
-    name: Manifest and lock agree
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.12"
-
-      - name: Check every manifest against its lock
-        run: python scripts/check_lock_sync.py
-
   firmware-build:
     name: Firmware build
-    needs: detect-firmware-changes
-    if: needs.detect-firmware-changes.outputs.firmware == 'true'
+    needs: application-gate
+    if: >-
+      needs.application-gate.outputs.firmware == 'true' &&
+      github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -99,6 +104,17 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
+
+      # The PR number isolates branches. Toolchain inputs invalidate the
+      # cache; source changes let PlatformIO rebuild only affected objects.
+      - name: Cache incremental firmware builds
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: firmware/.pio/build
+          key: >-
+            pio-build-${{ runner.os }}-${{ github.event.pull_request.number }}-
+            ${{ hashFiles('firmware/platformio.ini', 'dependency-provenance.json',
+            'scripts/verify_dependency_provenance.py', '.github/workflows/app-tests.yml') }}
 
       - name: Install PlatformIO
         run: pip install platformio==6.1.19
@@ -151,20 +167,3 @@ jobs:
           grep -qx 'CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE=y' "$config"
           grep -qx 'CONFIG_SECURE_FLASH_ENCRYPTION_AES256=y' "$config"
           grep -qx 'CONFIG_FLASH_ENCRYPTION_ENABLED=y' "$config"
-
-  caddy-validate:
-    name: Caddyfile validates
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      # Pinned by digest, not by tag: a tag, including a patch tag, can
-      # be repushed by whoever controls the image. Digest is caddy
-      # 2.11.4-alpine.
-      - name: Validate Caddyfile
-        run: |
-          docker run --rm -v "$PWD:/w" -w /w \
-            caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 \
-            caddy validate --config Caddyfile

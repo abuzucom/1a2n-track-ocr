@@ -420,8 +420,10 @@ Without hardware:
   lazily.
 - Run `pytest ml/tests/` for dataset containment, split isolation, label
   alignment, quality gates, and model-contract validation.
-- Run the policy checks in `scripts/`. CI runs these plus the backend
-  tests, firmware build, and Caddyfile validation on every pull request.
+- Run the policy checks in `scripts/`. CI runs them on every pull request.
+  It runs backend, lock, Caddy, and firmware checks only for relevant
+  paths. Firmware waits until the pull request is ready for review.
+  Project workflows do not rerun after merge.
 
 With a physical rig:
 
