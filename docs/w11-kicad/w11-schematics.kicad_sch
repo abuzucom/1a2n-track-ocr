@@ -4632,6 +4632,7 @@
 			(font
 				(size 1.5 1.5)
 			)
+			(justify left)
 		)
 		(uuid "5695830c-1c46-596d-8274-2884376cf5e8")
 	)
@@ -4712,6 +4713,7 @@
 			(font
 				(size 3 3)
 			)
+			(justify left)
 		)
 		(uuid "e42cd3c1-9da5-5827-b853-8aa6938119e1")
 	)

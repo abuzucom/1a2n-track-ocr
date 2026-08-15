@@ -312,14 +312,22 @@ def offsheet_endpoints(parts: list[Part]) -> tuple[list[str], list[str]]:
     return instances, connections
 
 
-def schematic_text(value: str, x: float, y: float, size: float, key: str) -> str:
+def schematic_text(
+    value: str,
+    x: float,
+    y: float,
+    size: float,
+    key: str,
+    *,
+    justify: str | None = None,
+) -> str:
     """Return an editable schematic text note."""
     return "\n".join(
         [
             f'\t(text "{escape(value)}"',
             "\t\t(exclude_from_sim no)",
             f"\t\t(at {coordinate(x)} {coordinate(y)} 0)",
-            f"\t\t{effects(size)}",
+            f"\t\t{effects(size, justify=justify)}",
             f'\t\t(uuid "{make_uuid(key)}")',
             "\t)",
         ]
@@ -356,13 +364,14 @@ def build_schematic(parts: list[Part]) -> str:
     instances.extend(endpoint_instances)
     connections.extend(endpoint_connections)
     notes = [
-        schematic_text(SCHEMATIC_TITLE, 25, 15, 3.0, "title"),
+        schematic_text(SCHEMATIC_TITLE, 25, 15, 3.0, "title", justify="left"),
         schematic_text(
             "Reconstructed from the vendor PDFs in docs/. Verify against hardware before manufacture.",
             25,
             23,
             1.5,
             "source-warning",
+            justify="left",
         ),
         schematic_text("External endpoints", 1040, 34, 2.0, "external-endpoints"),
         schematic_text(

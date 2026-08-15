@@ -28,3 +28,4 @@ def test_generated_schematic_has_metadata_and_clear_labels() -> None:
     label_count = schematic.count("\t(global_label ")
     assert label_count > 0
     assert schematic.count("\t\t\t(justify right)") == label_count
+    assert schematic.count("\t\t\t(justify left)") == 2
