@@ -410,8 +410,9 @@ its lock.
 | BLE firmware transport, pairing, framing, result queue | Built, unverified on hardware |
 | BLE server bridge, framing, auth, multi-rig handling | Built and tested, no radio in the loop |
 
-Also outstanding: recreate the W11 schematics as an editable KiCad
-project in `docs/`, with a PDF plot and a BOM.
+An editable KiCad reconstruction of both W11 vendor schematics, its PDF
+plot, and its grouped BOM are in `docs/w11-kicad/`. It is documentation,
+not manufacturing authority; its README records the source limitations.
 
 ## Verification
 

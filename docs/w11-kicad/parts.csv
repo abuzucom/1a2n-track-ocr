@@ -1,0 +1,122 @@
+section,reference,value,footprint,description,pins
+Mainboard Core,U1,W25Q128JWUIQ,,16MB SPI flash,1=SPICS0;2=SPIQ;3=SPIWP;4=GND;5=SPID;6=SPICLK;7=SPIHD;8=VDD_SPI;9=GND;10=GND
+Mainboard Core,U2,ESP32-S3R8,Package_DFN_QFN:QFN-56-1EP_7x7mm_P0.4mm_EP4x4mm,MCU with 8MB in-package PSRAM,1=LNA_IN;2=VDD33;3=VDD33;4=ESP_EN;5=GPIO0;6=GPIO1;7=GPIO2;8=GPIO3;9=GPIO4;10=GPIO5;11=GPIO6;12=GPIO7;13=GPIO8;14=GPIO9;15=GPIO10;16=GPIO11;17=GPIO12;18=GPIO13;19=GPIO14;20=VDD33;21=XTAL_32K_P;22=XTAL_32K_N;23=GPIO17;24=GPIO18;25=GPIO19;26=GPIO20;27=GPIO21;28=SPICS1;29=VDD_SPI;30=SPIHD;31=SPIWP;32=SPICS0;33=SPICLK;34=SPIQ;35=SPID;36=GPIO48;37=GPIO47;38=NC;39=NC;40=NC;41=NC;42=NC;43=GPIO38;44=GPIO39;45=GPIO40;46=VDD33;47=GPIO41;48=GPIO42;49=U0TXD;50=U0RXD;51=GPIO45;52=GPIO46;53=XTAL_N;54=XTAL_P;55=VDD33;56=VDD33;57=GND
+Mainboard Core,U3,TZ-H1010-RGB,,Addressable RGB LED,1=NC;2=VCC_3V3;3=GND;4=RGB_DIN
+Mainboard Core,Y1,40MHz 10ppm,,Crystal,1=XTAL_P;2=GND;3=XTAL_N;4=GND
+Mainboard Core,ANT1,ANT_ID,,IPEX antenna connector,1=RF_ANT;2=GND;3=GND
+Mainboard Core,J1,DF40C-30DP-0.4V(51),,Mainboard board-to-board connector,1=VIN;2=VIN;3=GPIO42;4=GPIO41;5=GPIO40;6=GPIO39;7=GPIO38;8=GPIO47;9=GPIO48;10=VCC_3V3;11=VCC_3V3;12=NC;13=NC;14=GPIO21;15=GND;16=VIN;17=GPIO18;18=GPIO17;19=GPIO16;20=GPIO15;21=GPIO14;22=GPIO13;23=GPIO12;24=GPIO11;25=GPIO10;26=GPIO9;27=GPIO8;28=GPIO7;29=GPIO6;30=GPIO5
+Mainboard Core,J2,2.54-1.27-8PIN,,GPIO breakout header,1=GPIO1;2=GPIO2;3=GPIO3;4=GPIO4;5=GPIO5;6=GPIO6;7=GPIO7;8=GPIO8;9=GPIO9;10=GPIO10;11=GPIO11;12=GPIO12;13=GPIO13;14=GPIO14;15=GND
+Mainboard Core,J3,2.54-1.27-8PIN,,USB and serial breakout header,1=VBUS;2=GND;3=GPIO19;4=GPIO20;5=U0TXD;6=U0RXD;7=ESP_EN;8=GPIO0;9=NC;10=NC;11=NC;12=NC
+Mainboard Core,SW1,SKTAAAE010,,Reset button,1=ESP_EN;2=GND;3=ESP_EN;4=GND
+Mainboard Core,SW2,SKTAAAE010,,Boot button,1=GPIO0;2=GND;3=GPIO0;4=GND
+Mainboard Core,R1,10K (DNP),,Optional GPIO46 pull-up,1=VDD33;2=GPIO46
+Mainboard Core,R3,10K,,Reset pull-up,1=VDD33;2=ESP_EN
+Mainboard Core,R4,10K,,Boot pull-up,1=VDD33;2=GPIO0
+Mainboard Core,R5,33R,,RGB data series resistor,1=GPIO48;2=RGB_DIN
+Mainboard Core,L1,2.0nH,,RF supply inductor,1=VDD33;2=VDDA
+Mainboard Core,L2,0R,,Antenna matching link,1=RF_ANT;2=LNA_IN
+Mainboard Core,C1,12pF,,Crystal load capacitor,1=XTAL_P;2=GND
+Mainboard Core,C2,12pF,,Crystal load capacitor,1=XTAL_N;2=GND
+Mainboard Core,C3,1uF,,MCU bypass capacitor,1=VDD33;2=GND
+Mainboard Core,C4,10nF,,MCU bypass capacitor,1=VDD33;2=GND
+Mainboard Core,C5,10uF,,MCU bulk capacitor,1=VDD33;2=GND
+Mainboard Core,C6,0.1uF,,MCU bypass capacitor,1=VDD33;2=GND
+Mainboard Core,C7,0.1uF,,RGB bypass capacitor,1=VCC_3V3;2=GND
+Mainboard Core,C8,0.1uF,,MCU bypass capacitor,1=VDD33;2=GND
+Mainboard Core,C9,NC,,Antenna matching capacitor,1=RF_ANT;2=GND
+Mainboard Core,C10,NC,,Antenna matching capacitor,1=LNA_IN;2=GND
+Mainboard Core,C11,0.1uF,,SPI supply bypass capacitor,1=VDD_SPI;2=GND
+Mainboard Core,C12,1uF,,SPI supply bulk capacitor,1=VDD_SPI;2=GND
+Mainboard Core,C13,0.1uF,,MCU bypass capacitor,1=VDD33;2=GND
+Mainboard Core,TP1,GND,,Ground test point,1=GND
+Mainboard Core,TP2,EN,,Reset test point,1=ESP_EN
+Mainboard Core,TP3,MTDO,,JTAG test point,1=GPIO40
+Mainboard Core,TP4,MTDI,,JTAG test point,1=GPIO41
+Mainboard Core,TP5,MTCK,,JTAG test point,1=GPIO39
+Mainboard Core,TP6,MTMS,,JTAG test point,1=GPIO42
+Mainboard Core,TP7,TX,,UART transmit test point,1=U0TXD
+Mainboard Core,TP8,RX,,UART receive test point,1=U0RXD
+Mainboard Power,U4,SGM40567-4.2XG/TR,,Li-ion charger,1=VBAT;2=CHGLED;3=GND;4=VBUS;5=CHARGE_IREF
+Mainboard Power,U5,SGM6029CYG/TR,,3.3V buck regulator,1=GND;2=VCC_3V3;3=VBAT;4=VCC_3V3;5=BUCK_MODE;6=BUCK_SW
+Mainboard Power,U6,STS35,,Temperature sensor,1=IMU_SDA;2=GND;3=NC;4=IMU_SCL;5=VCC3V3;6=NC;7=VCC3V3;8=GND;9=GND
+Mainboard Power,U7,QMI8658C,,Six-axis IMU,1=GND;2=NC;3=NC;4=IMU_INT1;5=VCC3V3;6=GND;7=GND;8=VCC3V3;9=NC;10=NC;11=NC;12=VCC3V3;13=IMU_SCL;14=IMU_SDA
+Mainboard Power,J4,USB2.0 Type C,,USB-C receptacle,1=GND;2=GND;3=VBUS;4=VBUS;5=USB_CC1;6=USB_DP;7=USB_DN;8=NC;9=USB_CC2;10=USB_DP;11=USB_DN;12=NC
+Mainboard Power,Q1,OVM20P42D6,,Power-path MOSFET,1=VBUS;2=VIN;3=VBAT
+Mainboard Power,D1,OVB32FK28A,,Power-path diode,1=VBUS;2=VIN
+Mainboard Power,LED1,RLED,,Charge status LED,1=CHGLED;2=VBUS_LED
+Mainboard Power,L3,470nH,Inductor_SMD:L_0603_1608Metric,Buck inductor,1=BUCK_SW;2=VCC_3V3
+Mainboard Power,R6,5.1K,Resistor_SMD:R_0201_0603Metric,USB CC pull-down,1=USB_CC1;2=GND
+Mainboard Power,R7,220K,Resistor_SMD:R_0201_0603Metric,Charge current programming resistor,1=CHARGE_IREF;2=GND
+Mainboard Power,R8,5.1K,Resistor_SMD:R_0201_0603Metric,USB CC pull-down,1=USB_CC2;2=GND
+Mainboard Power,R9,4.7K,,Charge LED resistor,1=VBUS;2=VBUS_LED
+Mainboard Power,R10,249K,Resistor_SMD:R_0201_0603Metric,Buck feedback resistor,1=BUCK_MODE;2=GND
+Mainboard Power,R11,100K,Resistor_SMD:R_0201_0603Metric,Power-path bias resistor,1=VIN;2=GND
+Mainboard Power,R12,2K,,Temperature sensor pull-up,1=VCC3V3;2=TEMP_RESET
+Mainboard Power,R13,510K,Resistor_SMD:R_0201_0603Metric,Battery divider upper resistor,1=VBAT;2=BAT_ADC
+Mainboard Power,R14,510K,Resistor_SMD:R_0201_0603Metric,Battery divider lower resistor,1=BAT_ADC;2=GND
+Mainboard Power,C14,1uF,Capacitor_SMD:C_0201_0603Metric,Charger input capacitor,1=VBUS;2=GND
+Mainboard Power,C15,1uF,Capacitor_SMD:C_0201_0603Metric,Charger battery capacitor,1=VBAT;2=GND
+Mainboard Power,C16,2.2uF,Capacitor_SMD:C_0201_0603Metric,Power-path capacitor,1=VIN;2=GND
+Mainboard Power,C17,4.7uF,Capacitor_SMD:C_0201_0603Metric,Buck input capacitor,1=VIN;2=GND
+Mainboard Power,C18,4.7uF,Capacitor_SMD:C_0201_0603Metric,Buck output capacitor,1=VCC_3V3;2=GND
+Mainboard Power,C19,4.7uF,Capacitor_SMD:C_0201_0603Metric,Buck output capacitor,1=VCC_3V3;2=GND
+Mainboard Power,C20,0.1uF,Capacitor_SMD:C_0201_0603Metric,Temperature sensor bypass capacitor,1=VCC3V3;2=GND
+Mainboard Power,C21,0.1uF,Capacitor_SMD:C_0201_0603Metric,IMU bypass capacitor,1=VCC3V3;2=GND
+Mainboard Power,C22,0.1uF,Capacitor_SMD:C_0201_0603Metric,Battery ADC filter capacitor,1=BAT_ADC;2=GND
+Expansion Board,JA1,AFC01-S24FCC-00,,OV5640 camera socket,1=NC;2=AGND;3=CAM_SDA;4=AVCC_2V8;5=CAM_SCL;6=CAM_RESET;7=DVP_VSYNC;8=CAM_PWDN;9=DVP_HREF;10=VCC_1V3;11=VCC_2V8;12=DVP_Y9;13=XMCLK;14=DVP_Y8;15=GND;16=DVP_Y7;17=DVP_PCLK;18=DVP_Y6;19=DVP_Y2;20=DVP_Y5;21=DVP_Y3;22=DVP_Y4;23=NC;24=NC
+Expansion Board,JA2,ST-TF-003D-3-2/320090495,,MicroSD socket,1=SD_D1;2=SD_D0;3=GND;4=SD_SCK;5=VCC_SD_3V3;6=SD_MOSI;7=SD_CS;8=SD_D2;9=GND;10=GND
+Expansion Board,JA3,DF40HC(3.0)-30DS-0.4V(51),,Expansion board-to-board connector,1=VIN;2=VIN;3=PDM_CLK;4=PDM_DATA;5=CAM_SDA;6=CAM_SCL;7=DVP_VSYNC;8=DVP_HREF;9=DVP_Y9;10=VCC_3V3;11=VCC_3V3;12=NC;13=NC;14=USER_LED;15=GND;16=VIN;17=DVP_Y4;18=DVP_Y3;19=DVP_Y5;20=DVP_Y2;21=DVP_Y6;22=DVP_PCLK;23=DVP_Y7;24=DVP_Y8;25=XMCLK;26=SD_MOSI;27=SD_MISO;28=SD_SCK;29=SD_CS;30=GND
+Expansion Board,MIC1,MSM261D3526H1CPM,,PDM microphone,1=VCC_3V3;2=PDM_CLK;3=PDM_DATA;4=GND;5=GND
+Expansion Board,U1,SGM2036S-2.8XXDH4G/TR,,2.8V camera LDO,1=VCC_IN;2=GND;3=VCC_2V8;4=VCC_IN
+Expansion Board,U2,SGM2036S-1.3XXDH4G/TR,,1.3V camera LDO,1=VCC_IN;2=GND;3=VCC_1V3;4=VCC_IN
+Expansion Board,D1,ESDPSA0402V05,,Camera ESD suppressor,1=CAM_SDA;2=GND
+Expansion Board,D2,ESDPSA0402V05,,Camera ESD suppressor,1=CAM_SCL;2=GND
+Expansion Board,D3,ESDPSA0402V05,,Camera ESD suppressor,1=DVP_PCLK;2=GND
+Expansion Board,D4,ESDPSA0402V05,,Camera ESD suppressor,1=XMCLK;2=GND
+Expansion Board,D5,ESD9B3.3ST5G,,SD ESD suppressor,1=VCC_SD_3V3;2=GND
+Expansion Board,D6,MSK4005,,Power protection diode,1=VIN;2=VCC_IN
+Expansion Board,FB1,120R-1.3A,,Camera supply ferrite bead,1=VCC_3V3;2=VCC_2V8
+Expansion Board,FB2,120R-1.3A,,SD supply ferrite bead,1=VCC_3V3;2=VCC_SD_3V3
+Expansion Board,R1,22R,,Camera series resistor,1=DVP_PCLK;2=DVP_PCLK_CAM
+Expansion Board,R2,22R,,Camera series resistor,1=XMCLK;2=XMCLK_CAM
+Expansion Board,R3,22R,,Camera series resistor,1=DVP_VSYNC;2=DVP_VSYNC_CAM
+Expansion Board,R4,4.7K,,Camera I2C pull-up,1=VCC_2V8;2=CAM_SDA
+Expansion Board,R5,4.7K,,Camera I2C pull-up,1=VCC_2V8;2=CAM_SCL
+Expansion Board,R6,4.7K,,Camera reset pull-up,1=VCC_2V8;2=CAM_RESET
+Expansion Board,R7,4.7K,,SD pull-up,1=VCC_SD_3V3;2=SD_MISO
+Expansion Board,R8,4.7K,,SD pull-up,1=VCC_SD_3V3;2=SD_MOSI
+Expansion Board,R9,10K,,Camera control pull resistor,1=CAM_PWDN;2=GND
+Expansion Board,R10,10K,,Camera control pull resistor,1=CAM_RESET;2=GND
+Expansion Board,R11,DNP,,Optional camera resistor,1=CAM_SDA;2=CAM_SCL
+Expansion Board,R12,0R,,Camera supply link,1=VCC_2V8;2=AVCC_2V8
+Expansion Board,R13,DNP,,Optional camera resistor,1=CAM_PWDN;2=GND
+Expansion Board,R14,0R,,Camera link,1=DVP_HREF;2=DVP_HREF_CAM
+Expansion Board,R15,DNP,,Optional camera resistor,1=DVP_VSYNC;2=GND
+Expansion Board,R16,0R,,User LED link,1=USER_LED;2=USER_LED_OUT
+Expansion Board,C1,4.7uF,,2.8V LDO input capacitor,1=VCC_IN;2=GND
+Expansion Board,C2,4.7uF,,2.8V LDO output capacitor,1=VCC_2V8;2=GND
+Expansion Board,C3,2.2uF,,1.3V LDO input capacitor,1=VCC_IN;2=GND
+Expansion Board,C4,2.2uF,,1.3V LDO output capacitor,1=VCC_1V3;2=GND
+Expansion Board,C5,100nF,,Camera supply bypass capacitor,1=VCC_2V8;2=GND
+Expansion Board,C6,100nF,,Camera supply bypass capacitor,1=VCC_2V8;2=GND
+Expansion Board,C7,100nF,,Microphone bypass capacitor,1=VCC_3V3;2=GND
+Expansion Board,C8,100nF,,Camera bypass capacitor,1=VCC_2V8;2=GND
+Expansion Board,C9,1uF,,Camera bulk capacitor,1=VCC_2V8;2=GND
+Expansion Board,C10,100nF,,Camera bypass capacitor,1=VCC_2V8;2=GND
+Expansion Board,C11,4.7uF,,Camera bulk capacitor,1=VCC_2V8;2=GND
+Expansion Board,C12,100nF,,Camera bypass capacitor,1=VCC_1V3;2=GND
+Expansion Board,C13,2.2uF,,SD supply capacitor,1=VCC_SD_3V3;2=GND
+Expansion Board,C14,2.2uF,,SD supply capacitor,1=VCC_SD_3V3;2=GND
+Expansion Board,C15,100nF,,SD bypass capacitor,1=VCC_SD_3V3;2=GND
+Expansion Board,C16,100nF,,Camera connector bypass capacitor,1=VCC_2V8;2=GND
+Expansion Board,C17,100nF,,Camera connector bypass capacitor,1=VCC_2V8;2=GND
+Expansion Board,J4,DNP,,Optional connector,1=NC
+Expansion Board,J5,DNP,,Optional connector,1=NC
+Expansion Board,JP1,Solder jumper,,Configuration jumper,1=CAM_PWDN;2=GND
+Expansion Board,JP2,Solder jumper,,Configuration jumper,1=CAM_RESET;2=VCC_2V8
+Expansion Board,JP3,Solder jumper,,Configuration jumper,1=USER_LED;2=USER_LED_OUT
+Expansion Board,TP1,VCC_2V8,,2.8V test point,1=VCC_2V8
+Expansion Board,TP2,VCC_1V3,,1.3V test point,1=VCC_1V3
+Expansion Board,TP3,GND,,Ground test point,1=GND
+Expansion Board,TP4,VCC_SD_3V3,,SD supply test point,1=VCC_SD_3V3
+Expansion Board,TP5,AVCC_2V8,,Camera analog supply test point,1=AVCC_2V8

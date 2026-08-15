@@ -11,6 +11,9 @@ until 1.0.0.
 
 ### Added
 
+- An editable KiCad 10 reconstruction of the W11 mainboard and expansion
+  board schematics, with a KiCad-generated PDF plot, grouped BOM, source
+  table, and clean ERC validation.
 - `docs/quickstart.md`: a non-technical, step by step guide to flashing a
   rig on WiFi, testing it, collecting training data, packaging it for the
   maintainer, and switching to BLE once a trained model comes back. Linked
@@ -98,6 +101,10 @@ until 1.0.0.
 
 ### Fixed
 
+- Generated schematic net labels now face away from component bodies, so
+  their text, frames, and connected symbols do not overlap.
+- Generated schematic title and source notes remain within the drawing
+  sheet borders.
 - ML dataset ingestion rejects unexpected names, traversal, symlinks,
   oversized compressed or decoded images, unbounded label manifests,
   duplicate samples crossing splits, and stalled Tesseract calls.
